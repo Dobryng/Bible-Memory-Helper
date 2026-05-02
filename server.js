@@ -2,6 +2,7 @@ import express from "express";
 import dotenv from "dotenv";
 import path from "path";
 import fs from "fs";
+import { Resend } from "resend";
 import { fileURLToPath } from "url";
 
 dotenv.config();
@@ -9,6 +10,10 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 3000;
 const ESV_API_KEY = process.env.ESV_API_KEY;
+const RESEND_API_KEY = process.env.RESEND_API_KEY;
+const FEEDBACK_TO_EMAIL = process.env.FEEDBACK_TO_EMAIL;
+const FEEDBACK_FROM_EMAIL = process.env.FEEDBACK_FROM_EMAIL || "Memory Verse Helper <onboarding@resend.dev>";
+const resend = RESEND_API_KEY ? new Resend(RESEND_API_KEY) : null;
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -146,7 +151,36 @@ function readFeedbacks() {
   }
 }
 
-app.post("/api/feedback", (req, res) => {
+async function sendFeedbackEmail(feedback) {
+  if (!resend || !FEEDBACK_TO_EMAIL) {
+    console.warn("Feedback email not sent: missing RESEND_API_KEY or FEEDBACK_TO_EMAIL.");
+    return;
+  }
+
+  const { data, error } = await resend.emails.send({
+    from: FEEDBACK_FROM_EMAIL,
+    to: FEEDBACK_TO_EMAIL,
+    subject: `New Memory Verse Helper feedback from ${feedback.name}`,
+    text: [
+      "New feedback submitted from Memory Verse Helper.",
+      "",
+      `Name: ${feedback.name}`,
+      `Submitted: ${feedback.createdAt}`,
+      "",
+      "Feedback:",
+      feedback.message
+    ].join("\n")
+  });
+
+  if (error) {
+    console.error("Resend email error:", error);
+    throw new Error(error.message || "Resend could not send the email.");
+  }
+
+  console.log("Feedback email sent:", data);
+}
+
+app.post("/api/feedback", async (req, res) => {
   try {
     const name = String(req.body.name || "Anonymous").trim();
     const message = String(req.body.message || "").trim();
@@ -167,10 +201,12 @@ app.post("/api/feedback", (req, res) => {
     feedbacks.unshift(newFeedback);
     fs.writeFileSync(feedbackFile, JSON.stringify(feedbacks, null, 2));
 
+    await sendFeedbackEmail(newFeedback);
+
     res.json({ success: true, feedback: newFeedback });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ error: "Could not save feedback." });
+    res.status(500).json({ error: "Could not save or email feedback." });
   }
 });
 
