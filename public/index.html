@@ -13,7 +13,7 @@
         <p class="eyebrow">ESV Bible Memory Trainer</p>
         <h1>Memorise Scripture.</h1>
         <p class="subtitle">
-          Load a verse from ESV, save it into your memory list, then choose how you want to practise it.
+          Load a verse, save it into your memory list, then choose how you want to practise it.
         </p>
       </div>
     </section>
@@ -40,6 +40,7 @@
             <div class="button-row compact">
               <button id="saveBtn" class="primary">Save Verse</button>
               <button id="copyBtn" class="ghost">Copy</button>
+              <button id="clearLoadedBtn" type="button" class="ghost">Clear</button>
             </div>
           </div>
           <div id="verseText" class="verse-text"></div>
@@ -73,7 +74,10 @@
               </select>
             </div>
 
-            <button id="startPracticeBtn" class="primary">Start Practice</button>
+            <div class="practice-option-buttons">
+              <button id="startPracticeBtn" class="primary">Start Practice</button>
+              <button id="clearPracticeBtn" type="button" class="danger">Clear Practice</button>
+            </div>
           </div>
         </section>
 
@@ -129,6 +133,39 @@
           </p>
         </section>
       </aside>
+    </section>
+
+    <section class="card feedback-card">
+      <div class="section-heading">
+        <div>
+          <p class="label">Feedback</p>
+          <h2>Leave Feedback</h2>
+        </div>
+      </div>
+
+      <div id="feedbackStatus" class="feedback-status hidden"></div>
+
+      <div class="feedback-form">
+        <div class="field">
+          <label for="feedbackName">Name</label>
+          <input id="feedbackName" type="text" placeholder="Optional" />
+        </div>
+
+        <div class="field">
+          <label for="feedbackMessage">Feedback</label>
+          <textarea id="feedbackMessage" placeholder="Type your feedback here..."></textarea>
+        </div>
+
+        <button id="submitFeedbackBtn" type="button" class="primary">Submit Feedback</button>
+      </div>
+
+      <div class="feedback-display">
+        <div class="feedback-display-heading">
+          <h3>Submitted Feedback</h3>
+          <button id="clearFeedbackBtn" type="button" class="danger">Clear Feedback</button>
+        </div>
+        <div id="feedbackList" class="feedback-list"></div>
+      </div>
     </section>
 
     <footer>

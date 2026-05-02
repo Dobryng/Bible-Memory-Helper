@@ -8,6 +8,7 @@ const verseReference = document.getElementById("verseReference");
 const verseText = document.getElementById("verseText");
 const practiceOptionsCard = document.getElementById("practiceOptionsCard");
 const startPracticeBtn = document.getElementById("startPracticeBtn");
+const clearPracticeBtn = document.getElementById("clearPracticeBtn");
 const practiceCard = document.getElementById("practiceCard");
 const practiceTitle = document.getElementById("practiceTitle");
 const practiceArea = document.getElementById("practiceArea");
@@ -22,10 +23,18 @@ const resultDetails = document.getElementById("resultDetails");
 const scorePill = document.getElementById("scorePill");
 const copyBtn = document.getElementById("copyBtn");
 const saveBtn = document.getElementById("saveBtn");
+const clearLoadedBtn = document.getElementById("clearLoadedBtn");
 const savedVersesList = document.getElementById("savedVersesList");
 const emptySavedText = document.getElementById("emptySavedText");
 const savedSearch = document.getElementById("savedSearch");
 const clearSavedBtn = document.getElementById("clearSavedBtn");
+
+const feedbackName = document.getElementById("feedbackName");
+const feedbackMessage = document.getElementById("feedbackMessage");
+const submitFeedbackBtn = document.getElementById("submitFeedbackBtn");
+const feedbackList = document.getElementById("feedbackList");
+const feedbackStatus = document.getElementById("feedbackStatus");
+const clearFeedbackBtn = document.getElementById("clearFeedbackBtn");
 
 const STORAGE_KEY = "esvMemoryTrainerSavedVerses";
 
@@ -88,6 +97,7 @@ function sortVersesBibleOrder(verses) {
 }
 
 let currentVerse = "";
+let currentVerseHtml = "";
 let currentReference = "";
 let currentWords = [];
 let blankIndexes = [];
@@ -112,8 +122,24 @@ function hideMessage() {
   messageBox.textContent = "";
 }
 
+function showFeedbackStatus(text, type = "info") {
+  if (!feedbackStatus) return;
+
+  feedbackStatus.textContent = text;
+  feedbackStatus.className = `feedback-status ${type}`;
+}
+
 function normalize(text) {
   return text
+    .toLowerCase()
+    .replace(/[“”]/g, '"')
+    .replace(/[‘’]/g, "'")
+    .replace(/[^a-z0-9']/g, "")
+    .trim();
+}
+
+function normalizeAnswer(text) {
+  return String(text || "")
     .toLowerCase()
     .replace(/[“”]/g, '"')
     .replace(/[‘’]/g, "'")
@@ -180,6 +206,16 @@ function escapeAttr(text) {
   return escapeHtml(text).replaceAll('"', "&quot;");
 }
 
+function renderLoadedVerseText() {
+  if (!verseText) return;
+
+  if (currentVerseHtml) {
+    verseText.innerHTML = currentVerseHtml;
+  } else {
+    verseText.textContent = currentVerse;
+  }
+}
+
 function loadSavedVerses() {
   try {
     savedVerses = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
@@ -198,6 +234,58 @@ function isCurrentVerseSaved() {
   return savedVerses.some(v => v.reference.toLowerCase() === currentReference.toLowerCase());
 }
 
+function updateSavePracticeButton() {
+  if (!saveBtn) return;
+
+  if (currentVerse && currentReference && isCurrentVerseSaved()) {
+    saveBtn.textContent = "Practice";
+  } else {
+    saveBtn.textContent = "Save Verse";
+  }
+}
+
+function handleSaveOrPracticeButton() {
+  if (currentVerse && currentReference && isCurrentVerseSaved()) {
+    currentVerseSaved = true;
+    practiceOptionsCard.classList.remove("hidden");
+    createTest();
+    return;
+  }
+
+  saveCurrentVerse();
+}
+
+function clearLoadedVerse() {
+  currentVerse = "";
+  currentVerseHtml = "";
+  currentReference = "";
+  currentWords = [];
+  blankIndexes = [];
+  hintCount = 0;
+  currentVerseSaved = false;
+
+  referenceInput.value = "";
+  verseReference.textContent = "Reference";
+  verseText.textContent = "";
+  scorePill.textContent = "Not checked yet";
+
+  verseCard.classList.add("hidden");
+  practiceOptionsCard.classList.add("hidden");
+  practiceCard.classList.add("hidden");
+  resultCard.classList.add("hidden");
+
+  hideMessage();
+  updateSavePracticeButton();
+}
+
+function clearPractice() {
+  practiceCard.classList.add("hidden");
+  resultCard.classList.add("hidden");
+  practiceArea.innerHTML = "";
+  scorePill.textContent = "Not checked yet";
+  hintCount = 0;
+}
+
 function saveCurrentVerse() {
   if (!currentVerse || !currentReference) {
     showMessage("Load a verse before saving.", "error");
@@ -211,6 +299,7 @@ function saveCurrentVerse() {
     id: existingIndex >= 0 ? savedVerses[existingIndex].id : crypto.randomUUID(),
     reference: currentReference,
     text: currentVerse,
+    html: currentVerseHtml,
     savedAt: new Date().toISOString(),
     bestScore: existingIndex >= 0 ? savedVerses[existingIndex].bestScore || null : null,
     attempts: existingIndex >= 0 ? savedVerses[existingIndex].attempts || 0 : 0
@@ -228,6 +317,7 @@ function saveCurrentVerse() {
   practiceOptionsCard.classList.remove("hidden");
   persistSavedVerses();
   renderSavedVerses();
+  updateSavePracticeButton();
 }
 
 function renderSavedVerses() {
@@ -272,24 +362,27 @@ function getVerseOnlyFromSaved(item) {
   return verseOnly;
 }
 
-function loadSavedVerse(id, shouldShowOptions = true) {
+function loadSavedVerse(id, shouldStartPractice = true) {
   const item = savedVerses.find(v => v.id === id);
   if (!item) return;
 
   currentReference = item.reference;
   currentVerse = item.text;
+  currentVerseHtml = item.html || "";
   currentVerseSaved = true;
   referenceInput.value = item.reference;
   verseReference.textContent = currentReference;
-  verseText.textContent = currentVerse;
+  renderLoadedVerseText();
   verseCard.classList.remove("hidden");
+  updateSavePracticeButton();
 
-  practiceOptionsCard.classList.toggle("hidden", !shouldShowOptions);
+  practiceOptionsCard.classList.remove("hidden");
   practiceCard.classList.add("hidden");
   resultCard.classList.add("hidden");
 
-  if (shouldShowOptions) {
-    showMessage(`${currentReference} loaded from saved verses. Choose practice options below.`, "info");
+  if (shouldStartPractice) {
+    createTest();
+    showMessage(`${currentReference} Practice loaded.`, "info");
   } else {
     showMessage(`${currentReference} loaded from saved verses.`, "info");
   }
@@ -322,6 +415,7 @@ function createTest() {
     return;
   }
 
+  verseCard.classList.add("hidden");
   resultCard.classList.add("hidden");
   practiceCard.classList.remove("hidden");
   scorePill.textContent = "Not checked yet";
@@ -390,20 +484,23 @@ async function loadVerse() {
     }
 
     currentVerse = cleanVerseText(data.text);
+    currentVerseHtml = data.html || "";
     currentReference = data.reference || reference;
     currentVerseSaved = false;
 
     verseReference.textContent = currentReference;
-    verseText.textContent = currentVerse;
+    renderLoadedVerseText();
 
     verseCard.classList.remove("hidden");
     practiceOptionsCard.classList.add("hidden");
     practiceCard.classList.add("hidden");
     resultCard.classList.add("hidden");
+    updateSavePracticeButton();
 
     if (isCurrentVerseSaved()) {
       currentVerseSaved = true;
       practiceOptionsCard.classList.remove("hidden");
+      updateSavePracticeButton();
       showMessage("This verse is already saved. Practice options are available below.", "info");
     } else {
       showMessage("Verse loaded. Save it first before practising.", "info");
@@ -421,8 +518,8 @@ function checkBlankAnswers() {
   let correct = 0;
 
   inputs.forEach(input => {
-    const expected = normalize(input.dataset.answer);
-    const actual = normalize(input.value);
+    const expected = normalizeAnswer(input.dataset.answer);
+    const actual = normalizeAnswer(input.value);
 
     input.classList.remove("correct", "wrong");
 
@@ -448,7 +545,7 @@ function checkFullRecall() {
 
   const comparison = expectedWords.map((word, i) => {
     const actual = actualWords[i] || "";
-    const ok = normalize(actual) === normalize(word);
+    const ok = normalizeAnswer(actual) === normalizeAnswer(word);
 
     if (ok) correct++;
 
@@ -478,11 +575,32 @@ function showResult(percent, detail) {
 }
 
 function revealVerse() {
-  resultCard.classList.remove("hidden");
-  bigScore.textContent = "Answer";
+  const mode = modeSelect.value;
+
+  if (mode === "blank") {
+    const inputs = [...practiceArea.querySelectorAll(".blank-input")];
+
+    inputs.forEach(input => {
+      input.value = input.dataset.answer || "";
+      input.classList.remove("correct", "wrong");
+      input.classList.add("revealed");
+      input.disabled = true;
+    });
+
+    scorePill.textContent = "Revealed";
+    resultCard.classList.add("hidden");
+    return;
+  }
+
+  const input = document.getElementById("fullRecallInput");
+  if (input) {
+    input.value = getVerseOnly(currentVerse);
+    input.classList.add("revealed");
+    input.disabled = true;
+  }
+
   scorePill.textContent = "Revealed";
-  resultTitle.textContent = currentReference;
-  resultDetails.innerHTML = `<p style="white-space:pre-wrap">${escapeHtml(getVerseOnly(currentVerse))}</p>`;
+  resultCard.classList.add("hidden");
 }
 
 function showHint() {
@@ -498,11 +616,13 @@ function showHint() {
     }
 
     const input = emptyInputs[0];
-    const answer = input.dataset.answer;
-    input.value = answer[0] || "";
-    input.focus();
+    const answer = input.dataset.answer || "";
+    input.value = answer;
+    input.classList.remove("correct", "wrong");
+    input.classList.add("revealed");
+    input.disabled = true;
     hintCount++;
-    showMessage(`Hint used: first letter added. Hints used this round: ${hintCount}.`, "info");
+    showMessage(`Hint used: one word revealed. Hints used this round: ${hintCount}.`, "info");
     return;
   }
 
@@ -516,10 +636,10 @@ function showHint() {
     return;
   }
 
-  input.value = `${input.value}${input.value.trim() ? " " : ""}${nextWord[0]}`;
+  input.value = `${input.value}${input.value.trim() ? " " : ""}${nextWord}`;
   input.focus();
   hintCount++;
-  showMessage(`Hint used: first letter of the next word added. Hints used this round: ${hintCount}.`, "info");
+  showMessage(`Hint used: one word revealed. Hints used this round: ${hintCount}.`, "info");
 }
 
 function checkAnswer() {
@@ -545,8 +665,14 @@ loadBtn.addEventListener("click", loadVerse);
 referenceInput.addEventListener("keydown", event => {
   if (event.key === "Enter") loadVerse();
 });
-saveBtn.addEventListener("click", saveCurrentVerse);
+saveBtn.addEventListener("click", handleSaveOrPracticeButton);
+if (clearLoadedBtn) {
+  clearLoadedBtn.addEventListener("click", clearLoadedVerse);
+}
 startPracticeBtn.addEventListener("click", createTest);
+if (clearPracticeBtn) {
+  clearPracticeBtn.addEventListener("click", clearPractice);
+}
 checkBtn.addEventListener("click", checkAnswer);
 hintBtn.addEventListener("click", showHint);
 revealBtn.addEventListener("click", revealVerse);
@@ -583,5 +709,133 @@ modeSelect.addEventListener("change", () => {
   resultCard.classList.add("hidden");
 });
 
+async function loadFeedbacks() {
+  if (!feedbackList) return;
+
+  try {
+    const response = await fetch(`${window.location.origin}/api/feedback`);
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || "Could not load feedback.");
+    }
+
+    renderFeedbacks(data.feedbacks || []);
+  } catch (error) {
+    console.error(error);
+    feedbackList.innerHTML = `
+      <div class="feedback-item">
+        <div class="feedback-message">Could not load feedback.</div>
+      </div>
+    `;
+  }
+}
+
+function renderFeedbacks(feedbacks) {
+  if (!feedbackList) return;
+
+  if (!feedbacks.length) {
+    feedbackList.innerHTML = `
+      <div class="feedback-item">
+        <div class="feedback-message">No feedback yet.</div>
+      </div>
+    `;
+    return;
+  }
+
+  feedbackList.innerHTML = feedbacks.map(item => {
+    const date = new Date(item.createdAt).toLocaleString();
+
+    return `
+      <div class="feedback-item">
+        <div class="feedback-name">${escapeHtml(item.name)}</div>
+        <div class="feedback-message">${escapeHtml(item.message)}</div>
+        <div class="feedback-date">${escapeHtml(date)}</div>
+      </div>
+    `;
+  }).join("");
+}
+
+async function submitFeedback() {
+  if (!feedbackName || !feedbackMessage || !submitFeedbackBtn) return;
+
+  const name = feedbackName.value.trim();
+  const message = feedbackMessage.value.trim();
+
+  if (!message) {
+    showFeedbackStatus("Please type your feedback before submitting.", "error");
+    return;
+  }
+
+  submitFeedbackBtn.disabled = true;
+  submitFeedbackBtn.textContent = "Submitting...";
+
+  try {
+    const response = await fetch(`${window.location.origin}/api/feedback`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ name, message })
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || "Could not submit feedback.");
+    }
+
+    feedbackMessage.value = "";
+    feedbackName.value = "";
+    showFeedbackStatus("Feedback submitted. Thank you!", "info");
+    loadFeedbacks();
+  } catch (error) {
+    console.error(error);
+    showFeedbackStatus("Feedback could not be submitted. Please check the feedback API setup.", "error");
+  } finally {
+    submitFeedbackBtn.disabled = false;
+    submitFeedbackBtn.textContent = "Submit Feedback";
+  }
+}
+
+async function clearFeedbacks() {
+  if (!clearFeedbackBtn) return;
+
+  if (!confirm("Clear all submitted feedback?")) return;
+
+  clearFeedbackBtn.disabled = true;
+  clearFeedbackBtn.textContent = "Clearing...";
+
+  try {
+    const response = await fetch(`${window.location.origin}/api/feedback/clear`, {
+      method: "POST"
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || "Could not clear feedback.");
+    }
+
+    showFeedbackStatus("All feedback cleared.", "info");
+    loadFeedbacks();
+  } catch (error) {
+    console.error(error);
+    showFeedbackStatus("Feedback could not be cleared. Please check the feedback API setup.", "error");
+  } finally {
+    clearFeedbackBtn.disabled = false;
+    clearFeedbackBtn.textContent = "Clear Feedback";
+  }
+}
+
+if (submitFeedbackBtn) {
+  submitFeedbackBtn.addEventListener("click", submitFeedback);
+}
+
+if (clearFeedbackBtn) {
+  clearFeedbackBtn.addEventListener("click", clearFeedbacks);
+}
+
 referenceInput.value = "";
 loadSavedVerses();
+loadFeedbacks();

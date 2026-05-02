@@ -1,6 +1,7 @@
 import express from "express";
 import dotenv from "dotenv";
 import path from "path";
+import fs from "fs";
 import { fileURLToPath } from "url";
 
 dotenv.config();
@@ -12,6 +13,7 @@ const ESV_API_KEY = process.env.ESV_API_KEY;
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+app.use(express.json());
 app.use(express.static(path.join(__dirname, "public")));
 
 app.get("/api/verse", async (req, res) => {
@@ -55,6 +57,7 @@ app.get("/api/verse", async (req, res) => {
 
     const rawPassages = Array.isArray(data.passages) ? data.passages : [];
     const passageText = rawPassages.join("\n").trim();
+    const canonicalReference = cleanReferenceText(data.canonical || "");
 
     if (!passageText) {
       return res.status(404).json({
@@ -62,8 +65,22 @@ app.get("/api/verse", async (req, res) => {
       });
     }
 
+    const normalisedUserReference = normaliseReference(reference);
+    const normalisedApiReference = normaliseReference(canonicalReference);
+    const userEnteredBookOnly = isBookOnlyReference(reference);
+    const bookOnlyMatch = userEnteredBookOnly && (
+      normalisedApiReference === normalisedUserReference ||
+      normalisedApiReference.startsWith(`${normalisedUserReference} `)
+    );
+
+    if (normalisedApiReference && normalisedUserReference !== normalisedApiReference && !bookOnlyMatch) {
+      return res.status(400).json({
+        error: `Did you mean ${canonicalReference}?`
+      });
+    }
+
     res.json({
-      reference: data.canonical || reference,
+      reference: canonicalReference || reference,
       text: passageText,
       query: reference
     });
@@ -74,6 +91,112 @@ app.get("/api/verse", async (req, res) => {
     });
   }
 });
+
+
+function cleanReferenceText(reference) {
+  return String(reference || "")
+    .replace(/^\.+\s*/, "")
+    .replace(/\.+$/, "")
+    .trim();
+}
+
+function isBookOnlyReference(reference) {
+  const normalised = normaliseReference(reference);
+  return normalised.length > 0 && !/\d/.test(normalised);
+}
+
+function normaliseReference(reference) {
+  return String(reference || "")
+    .toLowerCase()
+    .replace(/–|—/g, "-")
+    .replace(/\s+/g, " ")
+    .replace(/\s*:\s*/g, ":")
+    .replace(/\s*-\s*/g, "-")
+    .replace(/^hebrew\b/, "hebrews")
+    .replace(/^psalm\b/, "psalms")
+    .replace(/^song of songs\b/, "song of solomon")
+    .replace(/^canticles\b/, "song of solomon")
+    .replace(/^revelations\b/, "revelation")
+    .trim();
+}
+
+const dataDir = path.join(__dirname, "data");
+const feedbackFile = path.join(dataDir, "feedback.json");
+
+function ensureFeedbackFile() {
+  if (!fs.existsSync(dataDir)) {
+    fs.mkdirSync(dataDir, { recursive: true });
+  }
+
+  if (!fs.existsSync(feedbackFile)) {
+    fs.writeFileSync(feedbackFile, JSON.stringify([], null, 2));
+  }
+}
+
+function readFeedbacks() {
+  ensureFeedbackFile();
+
+  try {
+    const raw = fs.readFileSync(feedbackFile, "utf-8");
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (error) {
+    console.error("Could not read feedback file:", error);
+    return [];
+  }
+}
+
+app.post("/api/feedback", (req, res) => {
+  try {
+    const name = String(req.body.name || "Anonymous").trim();
+    const message = String(req.body.message || "").trim();
+
+    if (!message) {
+      return res.status(400).json({ error: "Feedback message cannot be empty." });
+    }
+
+    const feedbacks = readFeedbacks();
+
+    const newFeedback = {
+      id: crypto.randomUUID(),
+      name: name || "Anonymous",
+      message,
+      createdAt: new Date().toISOString()
+    };
+
+    feedbacks.unshift(newFeedback);
+    fs.writeFileSync(feedbackFile, JSON.stringify(feedbacks, null, 2));
+
+    res.json({ success: true, feedback: newFeedback });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Could not save feedback." });
+  }
+});
+
+app.get("/api/feedback", (req, res) => {
+  try {
+    const feedbacks = readFeedbacks();
+    res.json({ feedbacks });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Could not load feedback." });
+  }
+});
+
+function clearFeedbacks(req, res) {
+  try {
+    ensureFeedbackFile();
+    fs.writeFileSync(feedbackFile, JSON.stringify([], null, 2));
+    res.json({ success: true });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Could not clear feedback." });
+  }
+}
+
+app.delete("/api/feedback", clearFeedbacks);
+app.post("/api/feedback/clear", clearFeedbacks);
 
 app.listen(PORT, () => {
   console.log(`Bible Memory Trainer running at http://localhost:${PORT}`);

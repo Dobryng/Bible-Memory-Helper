@@ -145,6 +145,14 @@ button.primary {
 button.primary:hover { background: var(--primary-dark); }
 button.ghost { background: transparent; }
 button.danger { color: var(--red); background: #fff5f5; }
+#clearLoadedBtn {
+  color: var(--red);
+  background: #fff5f5;
+  border-color: #ffccc7;
+}
+#clearLoadedBtn:hover {
+  background: #ffe7e5;
+}
 button:disabled { opacity: .55; cursor: not-allowed; }
 
 .message {
@@ -211,6 +219,12 @@ button:disabled { opacity: .55; cursor: not-allowed; }
 
 .blank-input.correct { border-color: var(--green); background: #ecfdf3; }
 .blank-input.wrong { border-color: var(--red); background: #fff1f0; }
+.blank-input.revealed,
+.full-recall-box.revealed {
+  border-color: var(--blue);
+  background: #eef5ff;
+  color: var(--blue);
+}
 
 .full-recall-box {
   min-height: 180px;
@@ -319,10 +333,112 @@ button:disabled { opacity: .55; cursor: not-allowed; }
   font-size: 13px;
 }
 
+.saved-actions button[data-action="practice"] {
+  background: var(--primary);
+  color: #fff;
+  border-color: var(--primary);
+}
+
+.saved-actions button[data-action="practice"]:hover {
+  background: var(--primary-dark);
+}
+
 .empty-text {
   color: var(--muted);
   font-family: Arial, Helvetica, sans-serif;
   line-height: 1.5;
+}
+
+.feedback-card {
+  margin-top: 18px;
+}
+
+.feedback-form {
+  display: grid;
+  gap: 14px;
+}
+
+.feedback-form textarea {
+  min-height: 120px;
+  resize: vertical;
+}
+
+.feedback-status {
+  margin-bottom: 14px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  font-family: Arial, Helvetica, sans-serif;
+  font-weight: 800;
+}
+
+.feedback-status.info {
+  background: #eef5ff;
+  border: 1px solid #bfd7ff;
+  color: var(--blue);
+}
+
+.feedback-status.error {
+  background: #fff1f0;
+  border: 1px solid #ffccc7;
+  color: var(--red);
+}
+
+.feedback-display {
+  margin-top: 24px;
+}
+
+
+.feedback-display-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.feedback-display-heading h3 {
+  margin: 0;
+  font-family: Arial, Helvetica, sans-serif;
+  color: var(--primary);
+}
+
+.feedback-display-heading button {
+  padding: 8px 10px;
+  font-size: 13px;
+}
+
+.feedback-list {
+  display: grid;
+  gap: 10px;
+}
+
+.feedback-item {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 14px;
+}
+
+.feedback-name {
+  font-family: Arial, Helvetica, sans-serif;
+  font-weight: 900;
+  color: var(--primary);
+  margin-bottom: 6px;
+}
+
+.feedback-message {
+  font-family: Arial, Helvetica, sans-serif;
+  color: var(--text);
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+.feedback-date {
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--muted);
+  font-family: Arial, Helvetica, sans-serif;
 }
 
 footer {
