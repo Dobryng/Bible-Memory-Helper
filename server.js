@@ -37,32 +37,46 @@ app.get("/api/verse", async (req, res) => {
 
     const params = new URLSearchParams({
       q: reference,
-      "include-passage-references": "true",
-      "include-verse-numbers": "false",
-      "include-first-verse-numbers": "false",
+      "include-passage-references": "false",
+      "include-verse-numbers": "true",
+      "include-first-verse-numbers": "true",
       "include-footnotes": "false",
       "include-footnote-body": "false",
-      "include-headings": "false",
+      "include-headings": "true",
       "include-short-copyright": "false",
       "include-copyright": "false",
       "indent-using": "space"
     });
 
-    const response = await fetch(`https://api.esv.org/v3/passage/text/?${params}`, {
-      headers: { Authorization: `Token ${ESV_API_KEY}` }
-    });
+    const [textResponse, htmlResponse] = await Promise.all([
+      fetch(`https://api.esv.org/v3/passage/text/?${params}`, {
+        headers: { Authorization: `Token ${ESV_API_KEY}` }
+      }),
+      fetch(`https://api.esv.org/v3/passage/html/?${params}`, {
+        headers: { Authorization: `Token ${ESV_API_KEY}` }
+      })
+    ]);
 
-    const data = await response.json();
+    const data = await textResponse.json();
+    const htmlData = await htmlResponse.json();
 
-    if (!response.ok) {
-      return res.status(response.status).json({
+    if (!textResponse.ok) {
+      return res.status(textResponse.status).json({
         error: data?.detail || "The ESV API request failed."
       });
     }
 
+    if (!htmlResponse.ok) {
+      return res.status(htmlResponse.status).json({
+        error: htmlData?.detail || "The ESV HTML API request failed."
+      });
+    }
+
     const rawPassages = Array.isArray(data.passages) ? data.passages : [];
+    const rawHtmlPassages = Array.isArray(htmlData.passages) ? htmlData.passages : [];
     const passageText = rawPassages.join("\n").trim();
-    const canonicalReference = cleanReferenceText(data.canonical || "");
+    const passageHtml = rawHtmlPassages.join("\n").trim();
+    const canonicalReference = cleanReferenceText(data.canonical || htmlData.canonical || "");
 
     if (!passageText) {
       return res.status(404).json({
@@ -87,6 +101,7 @@ app.get("/api/verse", async (req, res) => {
     res.json({
       reference: canonicalReference || reference,
       text: passageText,
+      html: passageHtml,
       query: reference
     });
   } catch (error) {

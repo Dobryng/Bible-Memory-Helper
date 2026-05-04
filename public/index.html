@@ -57,27 +57,68 @@
           <div class="practice-options-grid">
             <div class="field">
               <label for="difficultySelect">Difficulty</label>
-              <select id="difficultySelect">
+              <select id="difficultySelect" class="hidden-native-select" aria-hidden="true" tabindex="-1">
                 <option value="easy">Easy · 25% blanks</option>
                 <option value="medium" selected>Medium · 40% blanks</option>
                 <option value="hard">Hard · 60% blanks</option>
                 <option value="extreme">Extreme · 80% blanks</option>
               </select>
-            </div>
 
-            <div class="field">
-              <label for="modeSelect">Mode</label>
-              <select id="modeSelect">
-                <option value="blank" selected>Fill in blanks</option>
-                <option value="first-letter">First-letter hints</option>
-                <option value="full-recall">Full recall</option>
-              </select>
+              <div id="difficultyPicker" class="difficulty-picker" role="group" aria-label="Difficulty">
+                <button type="button" class="difficulty-option" data-difficulty="easy">
+                  <span>Easy</span>
+                  <small>25% blanks</small>
+                </button>
+                <button type="button" class="difficulty-option active" data-difficulty="medium">
+                  <span>Medium</span>
+                  <small>40% blanks</small>
+                </button>
+                <button type="button" class="difficulty-option" data-difficulty="hard">
+                  <span>Hard</span>
+                  <small>60% blanks</small>
+                </button>
+                <button type="button" class="difficulty-option" data-difficulty="extreme">
+                  <span>Extreme</span>
+                  <small>80% blanks</small>
+                </button>
+              </div>
             </div>
 
             <div class="practice-option-buttons">
               <button id="startPracticeBtn" class="primary">Start Practice</button>
               <button id="clearPracticeBtn" type="button" class="danger">Clear Practice</button>
             </div>
+          </div>
+        </section>
+
+        <section id="progressCard" class="card progress-card hidden">
+          <div class="section-heading">
+            <div>
+              <p class="label">Progress</p>
+              <h2 id="progressReference">Saved verse progress</h2>
+            </div>
+          </div>
+
+          <div class="progress-grid">
+            <div class="progress-stat">
+              <span class="progress-stat-label">Best score</span>
+              <strong id="progressBestScore">No score yet</strong>
+            </div>
+
+            <div class="progress-stat">
+              <span class="progress-stat-label">Attempts</span>
+              <strong id="progressAttempts">0</strong>
+            </div>
+          </div>
+
+          <div class="progress-chart-wrap">
+            <div class="progress-chart-heading">
+              <h3>Score progress</h3>
+              <span class="progress-chart-caption">Attempt number vs score</span>
+            </div>
+
+            <canvas id="progressChart" class="hidden"></canvas>
+            <p id="progressChartEmpty" class="progress-chart-empty">No attempts yet. Start practising to build your progress chart.</p>
           </div>
         </section>
 
@@ -170,7 +211,11 @@
 
     <footer>
       <p>
-        Uses the official ESV API. Scripture quotations are from the ESV® Bible. Keep this for personal/non-commercial use and follow ESV API terms.
+        ESV® Bible (The Holy Bible, English Standard Version®), copyright © 2001 by Crossway, a publishing ministry of Good News Publishers. Used by permission. All rights reserved.
+
+The Holy Bible, English Standard Version (ESV) is adapted from the Revised Standard Version of the Bible, copyright Division of Christian Education of the National Council of the Churches of Christ in the U.S.A. All rights reserved.
+
+For information on how the ESV can be quoted, please visit our permission site (https://www.crossway.org/permissions/).
       </p>
     </footer>
   </main>
