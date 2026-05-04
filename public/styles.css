@@ -635,6 +635,47 @@ button:disabled { opacity: .55; cursor: not-allowed; }
   overflow: hidden;
 }
 
+.saved-verse-preview,
+.saved-verse-preview * {
+  font-family: Baskerville, "Libre Baskerville", "Palatino Linotype", Palatino, Georgia, "Times New Roman", serif !important;
+}
+
+.saved-verse-preview {
+  color: #6f665c;
+  font-size: 15px;
+  line-height: 1.55;
+}
+
+.saved-verse-preview .verse-number {
+  position: relative;
+  top: -0.45em;
+  margin-right: 0.18em;
+  color: #8b7a68;
+  font-family: Arial, Helvetica, sans-serif !important;
+  font-size: 0.62em;
+  font-weight: 800;
+  line-height: 0;
+  vertical-align: baseline;
+}
+
+.saved-verse-preview h1,
+.saved-verse-preview h2,
+.saved-verse-preview h3,
+.saved-verse-preview h4,
+.saved-verse-preview h5,
+.saved-verse-preview h6,
+.saved-verse-preview .heading,
+.saved-verse-preview .section-heading,
+.saved-verse-preview .chapter-heading,
+.saved-verse-preview .subheading,
+.saved-verse-preview .verse-heading,
+.saved-verse-preview .passage-heading,
+.saved-verse-preview .extra_text,
+.saved-verse-preview .chapter-num,
+.saved-verse-preview .chapter-number {
+  display: none;
+}
+
 .saved-actions {
   display: flex;
   gap: 8px;

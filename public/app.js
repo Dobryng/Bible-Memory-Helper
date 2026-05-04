@@ -313,12 +313,49 @@ function getPracticeVerseTextFromHtml(html) {
     container.querySelectorAll(selector).forEach(element => element.remove());
   });
 
-
   return container.textContent
     .replace(/\[[^\]]+\]/g, " ")
     .replace(/\b\d+\b/g, " ")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function removeKnownHeadingText(text) {
+  const headingTexts = [];
+
+  savedVerses.forEach(item => {
+    if (!item.html) return;
+
+    const container = document.createElement("div");
+    container.innerHTML = item.html;
+
+    const headingSelectors = [
+      "h1",
+      "h2",
+      "h3",
+      "h4",
+      "h5",
+      "h6",
+      ".heading",
+      ".section-heading",
+      ".chapter-heading",
+      ".subheading",
+      ".verse-heading",
+      ".passage-heading",
+      ".extra_text"
+    ];
+
+    headingSelectors.forEach(selector => {
+      container.querySelectorAll(selector).forEach(element => {
+        const heading = element.textContent.trim().replace(/\s+/g, " ");
+        if (heading) headingTexts.push(heading);
+      });
+    });
+  });
+
+  return headingTexts.reduce((cleanText, heading) => {
+    return cleanText.replaceAll(heading, " ");
+  }, text).replace(/\s+/g, " ").trim();
 }
 
 function tokenizeVerse(text) {
@@ -749,7 +786,7 @@ function renderSavedVerses() {
     const div = document.createElement("div");
     div.className = "saved-item";
 
-    const preview = getVerseOnlyFromSaved(item).slice(0, 130);
+    const previewHtml = getSavedVersePreviewHtml(item);
     const difficultyProgress = getDifficultyProgress(item);
     const scoreText = difficultyProgress.bestScore === null || difficultyProgress.bestScore === undefined
       ? "No score yet"
@@ -758,7 +795,7 @@ function renderSavedVerses() {
 
     div.innerHTML = `
       <div class="saved-ref">${escapeHtml(item.reference)}</div>
-      <div class="saved-preview">${escapeHtml(preview)}${preview.length >= 130 ? "..." : ""}</div>
+      <div class="saved-preview saved-verse-preview">${previewHtml}</div>
       <div class="saved-preview">${scoreText} · Attempts: ${attemptsText}</div>
       <div class="saved-actions">
         <button data-action="practice" data-id="${escapeAttr(item.id)}">Practice</button>
@@ -777,6 +814,13 @@ function getVerseOnlyFromSaved(item) {
   const verseOnly = getVerseOnly(item.text);
   currentReference = oldRef;
   return verseOnly;
+}
+
+function getSavedVersePreviewHtml(item) {
+  const previewSource = removeKnownHeadingText(getVerseOnlyFromSaved(item));
+  const preview = previewSource.slice(0, 130);
+  const suffix = previewSource.length > 130 ? "..." : "";
+  return `${formatVerseNumbers(escapeHtml(preview))}${suffix}`;
 }
 
 function loadSavedVerse(id, shouldStartPractice = true) {
