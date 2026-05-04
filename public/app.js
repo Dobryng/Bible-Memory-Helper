@@ -115,6 +115,7 @@ let currentReference = "";
 let currentWords = [];
 let blankIndexes = [];
 let hintCount = 0;
+let attemptRecordedThisRound = false;
 let savedVerses = [];
 let currentVerseSaved = false;
 
@@ -268,8 +269,52 @@ function getVerseOnly(text) {
     .trim();
 }
 
+
 function getPracticeVerseText(text) {
+  if (currentVerseHtml) {
+    return getPracticeVerseTextFromHtml(currentVerseHtml);
+  }
+
   return getVerseOnly(text)
+    // Remove verse numbers like [25], [26], [27]
+    .replace(/\[[^\]]+\]/g, " ")
+    // Remove standalone numbers
+    .replace(/\b\d+\b/g, " ")
+    // Clean spacing
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function getPracticeVerseTextFromHtml(html) {
+  const container = document.createElement("div");
+  container.innerHTML = html || "";
+
+  const selectorsToRemove = [
+    "h1",
+    "h2",
+    "h3",
+    "h4",
+    "h5",
+    "h6",
+    ".heading",
+    ".section-heading",
+    ".chapter-heading",
+    ".subheading",
+    ".verse-heading",
+    ".passage-heading",
+    ".extra_text",
+    ".chapter-num",
+    ".chapter-number",
+    ".footnotes",
+    ".crossrefs"
+  ];
+
+  selectorsToRemove.forEach(selector => {
+    container.querySelectorAll(selector).forEach(element => element.remove());
+  });
+
+
+  return container.textContent
     .replace(/\[[^\]]+\]/g, " ")
     .replace(/\b\d+\b/g, " ")
     .replace(/\s+/g, " ")
@@ -574,7 +619,7 @@ function showProgressForCurrentVerse() {
   progressBestScore.classList.remove("score-neutral", "score-low", "score-mid", "score-high");
   progressBestScore.classList.add(getScoreClass(bestScore));
 
-  const attempts = difficultyProgress.attempts || 0;
+  const attempts = savedVerse.attempts || 0;
   progressAttempts.textContent = String(attempts);
 
   const attemptsLabel = getProgressAttemptsLabelElement();
@@ -618,6 +663,7 @@ function clearLoadedVerse() {
   currentWords = [];
   blankIndexes = [];
   hintCount = 0;
+  attemptRecordedThisRound = false;
   currentVerseSaved = false;
 
   referenceInput.value = "";
@@ -643,6 +689,8 @@ function clearPractice() {
   practiceArea.innerHTML = "";
   scorePill.textContent = "Not checked yet";
   hintCount = 0;
+  attemptRecordedThisRound = false;
+  checkBtn.disabled = false;
   syncMemoryListHeight();
 }
 
@@ -679,7 +727,7 @@ function saveCurrentVerse() {
   }
 
   currentVerseSaved = true;
-  practiceOptionsCard.classList.remove("hidden");
+  practiceOptionsCard.classList.add("hidden");
   persistSavedVerses();
   renderSavedVerses();
   updateSavePracticeButton();
@@ -702,14 +750,16 @@ function renderSavedVerses() {
     div.className = "saved-item";
 
     const preview = getVerseOnlyFromSaved(item).slice(0, 130);
-    const scoreText = item.bestScore === null || item.bestScore === undefined
+    const difficultyProgress = getDifficultyProgress(item);
+    const scoreText = difficultyProgress.bestScore === null || difficultyProgress.bestScore === undefined
       ? "No score yet"
-      : `Best: ${item.bestScore}%`;
+      : `Best: ${difficultyProgress.bestScore}%`;
+    const attemptsText = item.attempts || 0;
 
     div.innerHTML = `
       <div class="saved-ref">${escapeHtml(item.reference)}</div>
       <div class="saved-preview">${escapeHtml(preview)}${preview.length >= 130 ? "..." : ""}</div>
-      <div class="saved-preview">${scoreText} · Attempts: ${item.attempts || 0}</div>
+      <div class="saved-preview">${scoreText} · Attempts: ${attemptsText}</div>
       <div class="saved-actions">
         <button data-action="practice" data-id="${escapeAttr(item.id)}">Practice</button>
         <button data-action="load" data-id="${escapeAttr(item.id)}">Load</button>
@@ -809,6 +859,8 @@ function createTest() {
   practiceCard.classList.remove("hidden");
   scorePill.textContent = "Not checked yet";
   hintCount = 0;
+  attemptRecordedThisRound = false;
+  checkBtn.disabled = false;
 
   const mode = getPracticeMode();
   const memoryText = getPracticeVerseText(currentVerse);
@@ -911,6 +963,10 @@ async function loadVerse() {
 
 function checkBlankAnswers() {
   const inputs = [...practiceArea.querySelectorAll(".blank-input")];
+  if (attemptRecordedThisRound) {
+    showMessage("This attempt has already been recorded. Click New Test to try again.", "info");
+    return;
+  }
   let correct = 0;
 
   inputs.forEach(input => {
@@ -930,12 +986,19 @@ function checkBlankAnswers() {
     input.disabled = true;
   });
 
+  attemptRecordedThisRound = true;
+  checkBtn.disabled = true;
+
   const percent = Math.round((correct / inputs.length) * 100);
   showResult(percent, `${correct} out of ${inputs.length} blanks correct.`);
 }
 
 function checkFullRecall() {
   const input = document.getElementById("fullRecallInput");
+  if (attemptRecordedThisRound) {
+    showMessage("This attempt has already been recorded. Click New Test to try again.", "info");
+    return;
+  }
   const expectedWords = getPracticeVerseText(currentVerse).split(/\s+/).filter(Boolean);
   const actualWords = input.value.split(/\s+/).filter(Boolean);
 
@@ -950,6 +1013,9 @@ function checkFullRecall() {
 
     return `<span class="word ${ok ? "correct" : "missing"}">${escapeHtml(word)}</span>`;
   }).join(" ");
+
+  attemptRecordedThisRound = true;
+  checkBtn.disabled = true;
 
   const percent = Math.round((correct / max) * 100);
   showResult(percent, `${correct} out of ${max} words matched in order.`);
@@ -989,6 +1055,7 @@ function revealVerse() {
 
     scorePill.textContent = "Revealed";
     resultCard.classList.add("hidden");
+    checkBtn.disabled = true;
     syncMemoryListHeight();
     return;
   }
@@ -1002,6 +1069,7 @@ function revealVerse() {
 
   scorePill.textContent = "Revealed";
   resultCard.classList.add("hidden");
+  checkBtn.disabled = true;
 }
 
 function showHint() {
