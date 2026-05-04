@@ -609,6 +609,10 @@ button:disabled { opacity: .55; cursor: not-allowed; }
   align-content: start;
 }
 
+.saved-list:empty {
+  display: none;
+}
+
 .saved-item {
   border: 1px solid var(--line);
   background: #fff;
@@ -658,7 +662,6 @@ button:disabled { opacity: .55; cursor: not-allowed; }
   font-family: Arial, Helvetica, sans-serif;
   line-height: 1.5;
   margin: 0;
-  align-self: start;
 }
 
 .feedback-card {
