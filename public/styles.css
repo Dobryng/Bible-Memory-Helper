@@ -606,6 +606,7 @@ button:disabled { opacity: .55; cursor: not-allowed; }
   overflow-y: auto;
   overflow-x: hidden;
   padding-right: 4px;
+  align-content: start;
 }
 
 .saved-item {
@@ -656,6 +657,8 @@ button:disabled { opacity: .55; cursor: not-allowed; }
   color: var(--muted);
   font-family: Arial, Helvetica, sans-serif;
   line-height: 1.5;
+  margin: 0;
+  align-self: start;
 }
 
 .feedback-card {
