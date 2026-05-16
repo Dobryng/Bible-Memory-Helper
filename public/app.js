@@ -1,4 +1,5 @@
 const referenceInput = document.getElementById("referenceInput");
+const versionSelect = document.getElementById("versionSelect");
 const difficultySelect = document.getElementById("difficultySelect");
 const difficultyPicker = document.getElementById("difficultyPicker");
 const modeSelect = document.getElementById("modeSelect");
@@ -23,13 +24,11 @@ const checkBtn = document.getElementById("checkBtn");
 const hintBtn = document.getElementById("hintBtn");
 const revealBtn = document.getElementById("revealBtn");
 const newTestBtn = document.getElementById("newTestBtn");
-const resultCard = document.getElementById("resultCard");
-const resultTitle = document.getElementById("resultTitle");
-const bigScore = document.getElementById("bigScore");
-const resultDetails = document.getElementById("resultDetails");
 const scorePill = document.getElementById("scorePill");
 const copyBtn = document.getElementById("copyBtn");
 const saveBtn = document.getElementById("saveBtn");
+const saveSelectionBtn = document.getElementById("saveSelectionBtn");
+const selectionSaveHint = document.getElementById("selectionSaveHint");
 const clearLoadedBtn = document.getElementById("clearLoadedBtn");
 const savedVersesList = document.getElementById("savedVersesList");
 const emptySavedText = document.getElementById("emptySavedText");
@@ -37,6 +36,19 @@ const savedSearch = document.getElementById("savedSearch");
 const clearSavedBtn = document.getElementById("clearSavedBtn");
 const mainColumn = document.querySelector(".main-column");
 const savedCard = document.querySelector(".saved-card");
+const dashboardCard = document.getElementById("dashboardCard");
+const dashboardFocusReference = document.getElementById("dashboardFocusReference");
+const dashboardFocusMessage = document.getElementById("dashboardFocusMessage");
+const dashboardPracticeBtn = document.getElementById("dashboardPracticeBtn");
+const dashboardSavedCount = document.getElementById("dashboardSavedCount");
+const dashboardTotalAttempts = document.getElementById("dashboardTotalAttempts");
+const dashboardAverageScore = document.getElementById("dashboardAverageScore");
+const dashboardUnpractisedCount = document.getElementById("dashboardUnpractisedCount");
+
+const verseOfTheDayReference = document.getElementById("verseOfTheDayReference");
+const verseOfTheDayText = document.getElementById("verseOfTheDayText");
+const saveVerseOfTheDayBtn = document.getElementById("saveVerseOfTheDayBtn");
+const loadVerseOfTheDayBtn = document.getElementById("loadVerseOfTheDayBtn");
 
 const feedbackName = document.getElementById("feedbackName");
 const feedbackMessage = document.getElementById("feedbackMessage");
@@ -118,6 +130,8 @@ let hintCount = 0;
 let attemptRecordedThisRound = false;
 let savedVerses = [];
 let currentVerseSaved = false;
+let selectedVerseReferences = [];
+let verseOfTheDayData = null;
 
 const difficultyMap = {
   easy: 0.25,
@@ -202,6 +216,7 @@ function getMainColumnContentHeight() {
   }, 0);
 }
 
+
 function syncMemoryListHeight() {
   if (!mainColumn || !savedCard) return;
 
@@ -215,6 +230,16 @@ function syncMemoryListHeight() {
     const mainHeight = Math.round(getMainColumnContentHeight());
     savedCard.style.height = `${mainHeight}px`;
     savedCard.style.maxHeight = `${mainHeight}px`;
+  });
+}
+
+// Scroll to top of app helper
+function scrollToTopOfApp() {
+  requestAnimationFrame(() => {
+    referenceInput.scrollIntoView({
+      behavior: "smooth",
+      block: "start"
+    });
   });
 }
 
@@ -320,6 +345,42 @@ function getPracticeVerseTextFromHtml(html) {
     .trim();
 }
 
+function getPracticeReferenceParts(reference) {
+  const cleanReference = String(reference || "").trim();
+  const match = cleanReference.match(/^(.*?)(\d+[:\d\s,–—-]*)$/);
+
+  if (!match) {
+    return {
+      book: cleanReference,
+      numbers: ""
+    };
+  }
+
+  return {
+    book: match[1].trim(),
+    numbers: match[2].trim()
+  };
+}
+
+function getReferenceNumbersAnswer(referenceNumbers) {
+  return String(referenceNumbers || "").replace(/\D/g, "");
+}
+
+function buildReferenceNumberPracticeHtml(referenceNumbers) {
+  return String(referenceNumbers || "")
+    .split(/(\d+)/g)
+    .filter(part => part.length > 0)
+    .map(part => {
+      if (/^\d+$/.test(part)) {
+        const width = Math.max(64, Math.min(180, part.length * 34 + 16));
+        return `<input class="blank-input reference-blank-input" data-answer="${escapeAttr(part)}" style="width:${width}px" autocomplete="off" inputmode="numeric" />`;
+      }
+
+      return `<span class="reference-punctuation">${escapeHtml(part)}</span>`;
+    })
+    .join("");
+}
+
 function removeKnownHeadingText(text) {
   const headingTexts = [];
 
@@ -359,11 +420,11 @@ function removeKnownHeadingText(text) {
 }
 
 function tokenizeVerse(text) {
-  const tokens = text.match(/[A-Za-z’'-]+|[^\sA-Za-z’'-]+|\s+/g) || [];
+  const tokens = text.match(/[A-Za-z0-9:–—-]+|[^\sA-Za-z0-9:–—-]+|\s+/g) || [];
   return tokens.map((token, index) => ({
     token,
     index,
-    isWord: /[A-Za-z]/.test(token)
+    isWord: /[A-Za-z0-9]/.test(token)
   }));
 }
 
@@ -380,6 +441,39 @@ function chooseBlankIndexes(tokens, ratio) {
   return [...selected];
 }
 
+// Helper functions for blank input navigation
+function moveBlankFocus(currentInput, direction) {
+  const inputs = [...practiceArea.querySelectorAll(".blank-input")];
+  const currentIndex = inputs.indexOf(currentInput);
+
+  if (currentIndex === -1) return;
+
+  const nextIndex = currentIndex + direction;
+  const nextInput = inputs[nextIndex];
+
+  if (!nextInput || nextInput.disabled) return;
+
+  nextInput.focus();
+  nextInput.select();
+}
+
+function handleBlankInputKeydown(event) {
+  const input = event.target;
+
+  if (!input.classList.contains("blank-input")) return;
+
+  if (event.key === " " || event.key === "Spacebar") {
+    event.preventDefault();
+    moveBlankFocus(input, 1);
+    return;
+  }
+
+  if (event.key === "Backspace" && input.selectionStart === 0 && input.selectionEnd === 0) {
+    event.preventDefault();
+    moveBlankFocus(input, -1);
+  }
+}
+
 function escapeHtml(text) {
   return String(text)
     .replaceAll("&", "&amp;")
@@ -391,8 +485,554 @@ function escapeAttr(text) {
   return escapeHtml(text).replaceAll('"', "&quot;");
 }
 
+function getSelectedVersion() {
+  return versionSelect ? String(versionSelect.value || "ESV").trim() : "ESV";
+}
+
+async function loadBibleVersions() {
+  if (!versionSelect) return;
+
+  try {
+    const response = await fetch("/api/bible-versions");
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || "Could not load Bible versions.");
+    }
+
+    const versions = Array.isArray(data.versions) ? data.versions : [];
+
+    versionSelect.innerHTML = versions.map(version => {
+      const value = version.source === "esv" ? "ESV" : version.id;
+      const abbreviation = version.displayAbbreviation || version.abbreviation || value;
+      const title = version.title || abbreviation;
+      const selected = value === "ESV" ? " selected" : "";
+
+      return `<option value="${escapeAttr(value)}"${selected}>${escapeHtml(abbreviation)} — ${escapeHtml(title)}</option>`;
+    }).join("");
+    loadVerseOfTheDay();
+  } catch (error) {
+    console.error(error);
+    versionSelect.innerHTML = `<option value="ESV" selected>ESV — English Standard Version</option>`;
+  }
+}
+
+function getVerseVersionKey(data) {
+  return String(data?.versionId || data?.version || "ESV").trim().toUpperCase();
+}
+
+function findSavedVerseIndexByReferenceAndVersion(reference, versionKey) {
+  const cleanReference = String(reference || "").toLowerCase();
+  const cleanVersionKey = String(versionKey || "ESV").trim().toUpperCase();
+
+  return savedVerses.findIndex(item => {
+    const itemReference = String(item.reference || "").toLowerCase();
+    const itemVersionKey = getVerseVersionKey(item);
+    return itemReference === cleanReference && itemVersionKey === cleanVersionKey;
+  });
+}
+
+function isVerseDataSaved(data) {
+  if (!data?.reference) return false;
+  return findSavedVerseIndexByReferenceAndVersion(data.reference, getVerseVersionKey(data)) >= 0;
+}
+
+function createSavedVerseRecordFromData(data, existingItem = null) {
+  return {
+    id: existingItem?.id || crypto.randomUUID(),
+    reference: data.reference,
+    version: data.version || "ESV",
+    versionId: data.versionId || data.version || "ESV",
+    versionLabel: data.versionLabel || data.version || "English Standard Version",
+    text: cleanVerseText(data.text || ""),
+    html: data.html || "",
+    savedAt: existingItem?.savedAt || new Date().toISOString(),
+    bestScore: existingItem?.bestScore || null,
+    attempts: existingItem?.attempts || 0,
+    scoreHistory: existingItem?.scoreHistory || [],
+    progressByDifficulty: existingItem?.progressByDifficulty || {},
+    htmlVersion: SAVED_VERSE_HTML_VERSION
+  };
+}
+
+function upsertSavedVerseFromData(data) {
+  if (!data?.reference || !data?.text) return false;
+
+  const existingIndex = findSavedVerseIndexByReferenceAndVersion(data.reference, getVerseVersionKey(data));
+  const existingItem = existingIndex >= 0 ? savedVerses[existingIndex] : null;
+  const verseRecord = createSavedVerseRecordFromData(data, existingItem);
+
+  ensureDifficultyProgress(verseRecord);
+
+  if (existingIndex >= 0) {
+    savedVerses[existingIndex] = verseRecord;
+  } else {
+    savedVerses.unshift(verseRecord);
+  }
+
+  persistSavedVerses();
+  renderSavedVerses();
+  updateDashboard();
+  return true;
+}
+
+function renderVerseOfTheDay() {
+  if (!verseOfTheDayReference || !verseOfTheDayText) return;
+
+  if (!verseOfTheDayData) {
+    verseOfTheDayReference.textContent = "Loading today’s verse...";
+    verseOfTheDayText.textContent = "Preparing a verse for today.";
+    if (saveVerseOfTheDayBtn) saveVerseOfTheDayBtn.classList.add("hidden");
+    if (loadVerseOfTheDayBtn) loadVerseOfTheDayBtn.classList.add("hidden");
+    return;
+  }
+
+  verseOfTheDayReference.textContent = `${verseOfTheDayData.reference} · ${verseOfTheDayData.version || "ESV"}`;
+  verseOfTheDayText.innerHTML = verseOfTheDayData.html
+    ? formatVerseNumbers(verseOfTheDayData.html)
+    : formatVerseNumbers(escapeHtml(verseOfTheDayData.text || ""));
+
+  const alreadySaved = isVerseDataSaved(verseOfTheDayData);
+
+  if (saveVerseOfTheDayBtn) {
+    saveVerseOfTheDayBtn.classList.toggle("hidden", alreadySaved);
+    saveVerseOfTheDayBtn.textContent = alreadySaved ? "Saved" : "Save Verse of the Day";
+  }
+
+  if (loadVerseOfTheDayBtn) {
+    loadVerseOfTheDayBtn.classList.remove("hidden");
+  }
+}
+
+async function loadVerseOfTheDay() {
+  if (!verseOfTheDayReference || !verseOfTheDayText) return;
+
+  try {
+    verseOfTheDayReference.textContent = "Loading today’s verse...";
+    verseOfTheDayText.textContent = "Preparing a verse for today.";
+
+    const selectedVersion = getSelectedVersion();
+    const response = await fetch(`/api/verse-of-the-day?version=${encodeURIComponent(selectedVersion)}`);
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || "Could not load verse of the day.");
+    }
+
+    verseOfTheDayData = data;
+    renderVerseOfTheDay();
+  } catch (error) {
+    console.error(error);
+    verseOfTheDayReference.textContent = "Verse of the Day unavailable";
+    verseOfTheDayText.textContent = error.message;
+    if (saveVerseOfTheDayBtn) saveVerseOfTheDayBtn.classList.add("hidden");
+    if (loadVerseOfTheDayBtn) loadVerseOfTheDayBtn.classList.add("hidden");
+  }
+}
+
+function saveVerseOfTheDay() {
+  if (!verseOfTheDayData) {
+    showMessage("Verse of the Day is still loading.", "error");
+    return;
+  }
+
+  const saved = upsertSavedVerseFromData(verseOfTheDayData);
+
+  if (saved) {
+    showMessage(`${verseOfTheDayData.reference} saved from Verse of the Day.`, "info");
+    renderVerseOfTheDay();
+    syncMemoryListHeight();
+  }
+}
+
+function loadVerseOfTheDayIntoMainView() {
+  if (!verseOfTheDayData) {
+    showMessage("Verse of the Day is still loading.", "error");
+    return;
+  }
+
+  currentVerse = cleanVerseText(verseOfTheDayData.text || "");
+  currentVerseHtml = verseOfTheDayData.html || "";
+  currentReference = verseOfTheDayData.reference || "";
+  currentVerseSaved = isVerseDataSaved(verseOfTheDayData);
+
+  if (referenceInput) referenceInput.value = currentReference;
+  if (versionSelect && verseOfTheDayData.versionId) versionSelect.value = verseOfTheDayData.versionId;
+
+  verseReference.textContent = currentReference;
+  renderLoadedVerseText();
+
+  verseCard.classList.remove("hidden");
+  practiceOptionsCard.classList.add("hidden");
+  hideProgressCard();
+  practiceCard.classList.add("hidden");
+  updateDashboardVisibility();
+  updateSavePracticeButton();
+  showMessage("Verse of the Day loaded.", "info");
+  syncMemoryListHeight();
+}
+
 function formatVerseNumbers(html) {
   return String(html || "").replace(/\[(\d+)\]/g, '<sup class="verse-number">$1</sup>');
+}
+
+// --- Helper functions for verse marker selection and highlighting ---
+function getVerseMarkerElements() {
+  if (!verseText) return [];
+  return [...verseText.querySelectorAll(".verse-number, .verse-num, .verse-num__verse")];
+}
+
+function getReferenceBookAndChapter(reference) {
+  const cleanReference = String(reference || "").trim();
+  const match = cleanReference.match(/^(.*?\D)\s+(\d+)/);
+
+  if (!match) {
+    return null;
+  }
+
+  return {
+    book: match[1].trim(),
+    chapter: match[2].trim()
+  };
+}
+
+function getVerseNumbersFromReference(reference, expectedChapter) {
+  const cleanReference = String(reference || "").trim();
+  const chapterPattern = expectedChapter
+    ? new RegExp(`\\b${expectedChapter}:(.+)$`)
+    : /\b\d+:(.+)$/;
+  const match = cleanReference.match(chapterPattern);
+
+  if (!match) return [];
+
+  const versePart = match[1].trim();
+  const verseNumbers = new Set();
+
+  versePart.split(",").forEach(part => {
+    const rangeMatch = part.trim().match(/(\d+)\s*[–—-]?\s*(\d+)?/);
+    if (!rangeMatch) return;
+
+    const start = Number(rangeMatch[1]);
+    const end = rangeMatch[2] ? Number(rangeMatch[2]) : start;
+
+    if (!Number.isFinite(start) || !Number.isFinite(end)) return;
+
+    const lower = Math.min(start, end);
+    const upper = Math.max(start, end);
+
+    for (let verse = lower; verse <= upper; verse++) {
+      verseNumbers.add(String(verse));
+    }
+  });
+
+  return [...verseNumbers];
+}
+
+// --- Helper function to get first verse number from reference
+function getFirstVerseNumberFromReference(reference) {
+  const cleanReference = String(reference || "").trim();
+
+  const verseMatch = cleanReference.match(/:\s*(\d+)/);
+  if (verseMatch) return verseMatch[1];
+
+  const chapterOnlyMatch = cleanReference.match(/\b\d+$/);
+  if (chapterOnlyMatch) return "1";
+
+  return "";
+}
+
+// --- Helper to add missing first verse marker if needed
+function addMissingFirstVerseMarker() {
+  if (!verseText || !currentReference) return;
+
+  const firstVerseNumber = getFirstVerseNumberFromReference(currentReference);
+  if (!firstVerseNumber) return;
+
+  const existingFirstMarker = getVerseMarkerElements()[0];
+  if (existingFirstMarker && getVerseNumberFromMarker(existingFirstMarker) === firstVerseNumber) return;
+  if (verseText.querySelector(".injected-verse-number")) return;
+
+  const headingsAndRemovedItems = [
+    "h1",
+    "h2",
+    "h3",
+    "h4",
+    "h5",
+    "h6",
+    ".heading",
+    ".section-heading",
+    ".chapter-heading",
+    ".subheading",
+    ".verse-heading",
+    ".passage-heading",
+    ".extra_text",
+    ".chapter-num",
+    ".chapter-number",
+    ".footnotes",
+    ".crossrefs"
+  ];
+
+  const walker = document.createTreeWalker(
+    verseText,
+    NodeFilter.SHOW_TEXT,
+    {
+      acceptNode(node) {
+        if (!node.textContent.trim()) return NodeFilter.FILTER_REJECT;
+        if (node.parentElement?.closest(headingsAndRemovedItems.join(","))) {
+          return NodeFilter.FILTER_REJECT;
+        }
+        return NodeFilter.FILTER_ACCEPT;
+      }
+    }
+  );
+
+  const firstTextNode = walker.nextNode();
+  if (!firstTextNode || !firstTextNode.parentNode) return;
+
+  const marker = document.createElement("sup");
+  marker.className = "verse-number injected-verse-number";
+  marker.textContent = firstVerseNumber;
+  firstTextNode.parentNode.insertBefore(marker, firstTextNode);
+}
+
+function buildVerseReference(verseNumber) {
+  const parts = getReferenceBookAndChapter(currentReference);
+  if (!parts || !verseNumber) return "";
+  return `${parts.book} ${parts.chapter}:${verseNumber}`;
+}
+
+function combineSelectedVerseReferences(references) {
+  if (!Array.isArray(references) || references.length === 0) return [];
+
+  const groups = new Map();
+  const passthroughReferences = [];
+
+  references.forEach(reference => {
+    const cleanReference = String(reference || "").trim();
+    const match = cleanReference.match(/^(.*?)\s+(\d+):(\d+)(?:[–—-](\d+))?$/);
+
+    if (!match) {
+      if (cleanReference) passthroughReferences.push(cleanReference);
+      return;
+    }
+
+    const book = match[1].trim();
+    const chapter = match[2];
+    const startVerse = Number(match[3]);
+    const endVerse = match[4] ? Number(match[4]) : startVerse;
+
+    if (!book || !chapter || !Number.isFinite(startVerse) || !Number.isFinite(endVerse)) {
+      passthroughReferences.push(cleanReference);
+      return;
+    }
+
+    const key = `${book} ${chapter}`;
+
+    if (!groups.has(key)) {
+      groups.set(key, []);
+    }
+
+    const lower = Math.min(startVerse, endVerse);
+    const upper = Math.max(startVerse, endVerse);
+
+    for (let verse = lower; verse <= upper; verse++) {
+      groups.get(key).push(verse);
+    }
+  });
+
+  const combinedReferences = [...groups.entries()].map(([bookChapter, verses]) => {
+    const sortedVerses = [...new Set(verses)].sort((a, b) => a - b);
+
+    if (sortedVerses.length === 1) {
+      return `${bookChapter}:${sortedVerses[0]}`;
+    }
+
+    return `${bookChapter}:${sortedVerses[0]}-${sortedVerses[sortedVerses.length - 1]}`;
+  });
+
+  return [...new Set([...combinedReferences, ...passthroughReferences])];
+}
+
+function getVerseNumberFromMarker(marker) {
+  return String(marker?.textContent || "").replace(/\D/g, "");
+}
+
+function getTextNodesBetweenVerseMarkers(marker, nextMarker) {
+  if (!verseText || !marker) return [];
+
+  const textNodes = [];
+  const walker = document.createTreeWalker(
+    verseText,
+    NodeFilter.SHOW_TEXT,
+    {
+      acceptNode(node) {
+        if (!node.textContent.trim()) {
+          return NodeFilter.FILTER_REJECT;
+        }
+        if (node.parentElement?.closest("h1, h2, h3, h4, h5, h6, .heading, .section-heading, .chapter-heading, .subheading, .verse-heading, .passage-heading, .extra_text, .footnotes, .crossrefs")) {
+          return NodeFilter.FILTER_REJECT;
+        }
+
+        const isAfterMarker = Boolean(
+          marker.compareDocumentPosition(node) & Node.DOCUMENT_POSITION_FOLLOWING
+        );
+
+        if (!isAfterMarker) {
+          return NodeFilter.FILTER_REJECT;
+        }
+
+        if (nextMarker) {
+          const isBeforeNextMarker = Boolean(
+            node.compareDocumentPosition(nextMarker) & Node.DOCUMENT_POSITION_FOLLOWING
+          );
+
+          if (!isBeforeNextMarker) {
+            return NodeFilter.FILTER_REJECT;
+          }
+        }
+
+        return NodeFilter.FILTER_ACCEPT;
+      }
+    }
+  );
+
+  while (walker.nextNode()) {
+    textNodes.push(walker.currentNode);
+  }
+
+  return textNodes;
+}
+
+function getSelectedVerseReferences() {
+  const selection = window.getSelection();
+
+  if (!selection || selection.rangeCount === 0 || !verseText || selection.isCollapsed) {
+    return [];
+  }
+
+  const range = selection.getRangeAt(0);
+
+  if (!verseText.contains(range.commonAncestorContainer)) {
+    return [];
+  }
+
+  const markers = getVerseMarkerElements();
+  const selectedMarkers = markers.filter((marker, index) => {
+    const markerVerseNumber = getVerseNumberFromMarker(marker);
+    if (!markerVerseNumber) return false;
+
+    try {
+      if (range.intersectsNode(marker)) return true;
+    } catch {
+      // Continue checking the verse text nodes.
+    }
+
+    const nextMarker = markers[index + 1] || null;
+    const verseTextNodes = getTextNodesBetweenVerseMarkers(marker, nextMarker);
+
+    return verseTextNodes.some(textNode => {
+      try {
+        return range.intersectsNode(textNode);
+      } catch {
+        return false;
+      }
+    });
+  });
+
+  return [...new Set(selectedMarkers
+    .map(marker => buildVerseReference(getVerseNumberFromMarker(marker)))
+    .filter(Boolean))];
+}
+
+function updateSaveSelectionButton() {
+  if (!saveSelectionBtn) return;
+
+  const selectedReferences = combineSelectedVerseReferences([...new Set(getSelectedVerseReferences())]);
+  const unsavedReferences = selectedReferences.filter(reference => !isReferenceSaved(reference));
+  selectedVerseReferences = unsavedReferences;
+
+  const hasUnsavedSelection = unsavedReferences.length > 0;
+
+  saveSelectionBtn.classList.toggle("hidden", !hasUnsavedSelection);
+
+  if (selectionSaveHint) {
+    selectionSaveHint.classList.toggle("hidden", hasUnsavedSelection || !currentReference || !currentVerse);
+  }
+
+  if (hasUnsavedSelection) {
+    saveSelectionBtn.textContent = unsavedReferences.length === 1
+      ? `Save ${unsavedReferences[0]}`
+      : `Save ${unsavedReferences.length} selected passages`;
+    positionSaveSelectionButton();
+  } else {
+    saveSelectionBtn.style.top = "";
+    saveSelectionBtn.style.left = "";
+  }
+}
+
+function positionSaveSelectionButton() {
+  if (!saveSelectionBtn || saveSelectionBtn.classList.contains("hidden")) return;
+
+  const selection = window.getSelection();
+  if (!selection || selection.rangeCount === 0 || selection.isCollapsed) return;
+
+  const range = selection.getRangeAt(0);
+  const rect = range.getBoundingClientRect();
+
+  if (!rect || rect.width === 0 || rect.height === 0) return;
+
+  const buttonRect = saveSelectionBtn.getBoundingClientRect();
+  const top = Math.max(12, rect.top - buttonRect.height - 10);
+  const left = Math.min(
+    window.innerWidth - buttonRect.width - 12,
+    Math.max(12, rect.left + rect.width / 2 - buttonRect.width / 2)
+  );
+
+  saveSelectionBtn.style.top = `${top}px`;
+  saveSelectionBtn.style.left = `${left}px`;
+}
+
+function markSavedVersesInLoadedPassage() {
+  if (!verseText || !currentReference) return;
+
+  const parts = getReferenceBookAndChapter(currentReference);
+  if (!parts) return;
+
+  const savedVerseNumbers = new Set();
+
+  savedVerses.forEach(item => {
+    const itemParts = getReferenceBookAndChapter(item.reference);
+    if (!itemParts) return;
+    if (itemParts.book.toLowerCase() !== parts.book.toLowerCase()) return;
+    if (itemParts.chapter !== parts.chapter) return;
+
+    getVerseNumbersFromReference(item.reference, parts.chapter).forEach(verseNumber => {
+      savedVerseNumbers.add(verseNumber);
+    });
+  });
+
+  if (!savedVerseNumbers.size) return;
+
+  const markers = getVerseMarkerElements();
+
+  markers.forEach((marker, index) => {
+    const verseNumber = getVerseNumberFromMarker(marker);
+    if (!savedVerseNumbers.has(verseNumber)) return;
+
+    marker.classList.add("saved-verse-marker");
+
+    const nextMarker = markers[index + 1] || null;
+    const textNodes = getTextNodesBetweenVerseMarkers(marker, nextMarker);
+
+    textNodes.forEach(textNode => {
+      if (textNode.parentElement?.classList.contains("saved-verse-highlight")) return;
+
+      const wrapper = document.createElement("span");
+      wrapper.className = "saved-verse-highlight";
+      textNode.parentNode.insertBefore(wrapper, textNode);
+      wrapper.appendChild(textNode);
+    });
+  });
 }
 
 function renderLoadedVerseText() {
@@ -402,6 +1042,77 @@ function renderLoadedVerseText() {
     verseText.innerHTML = currentVerseHtml;
   } else {
     verseText.innerHTML = formatVerseNumbers(escapeHtml(currentVerse));
+  }
+
+  addMissingFirstVerseMarker();
+  markSavedVersesInLoadedPassage();
+  updateSaveSelectionButton();
+}
+async function saveSelectedVerses() {
+  const referencesToSave = [...new Set(selectedVerseReferences)].filter(reference => !isReferenceSaved(reference));
+
+  if (!referencesToSave.length) {
+    showMessage("Highlight a verse in the loaded passage first.", "error");
+    return;
+  }
+
+  if (saveSelectionBtn) {
+    saveSelectionBtn.disabled = true;
+    saveSelectionBtn.textContent = "Saving...";
+  }
+
+  try {
+    for (const reference of referencesToSave) {
+      const selectedVersion = getSelectedVersion();
+      const response = await fetch(`/api/verse?reference=${encodeURIComponent(reference)}&version=${encodeURIComponent(selectedVersion)}`);
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || `Could not save ${reference}.`);
+      }
+
+      const cleanReference = data.reference || reference;
+      const existingIndex = savedVerses.findIndex(v => v.reference.toLowerCase() === cleanReference.toLowerCase());
+
+      const verseRecord = {
+        id: existingIndex >= 0 ? savedVerses[existingIndex].id : crypto.randomUUID(),
+        reference: cleanReference,
+        text: cleanVerseText(data.text || ""),
+        html: data.html || "",
+        savedAt: new Date().toISOString(),
+        bestScore: existingIndex >= 0 ? savedVerses[existingIndex].bestScore || null : null,
+        attempts: existingIndex >= 0 ? savedVerses[existingIndex].attempts || 0 : 0,
+        scoreHistory: existingIndex >= 0 ? savedVerses[existingIndex].scoreHistory || [] : [],
+        progressByDifficulty: existingIndex >= 0 ? savedVerses[existingIndex].progressByDifficulty || {} : {},
+        htmlVersion: SAVED_VERSE_HTML_VERSION
+      };
+
+      ensureDifficultyProgress(verseRecord);
+
+      if (existingIndex >= 0) {
+        savedVerses[existingIndex] = verseRecord;
+      } else {
+        savedVerses.unshift(verseRecord);
+      }
+    }
+
+    persistSavedVerses();
+    renderSavedVerses();
+    updateDashboard();
+
+    renderLoadedVerseText();
+    updateSavePracticeButton();
+    showMessage(`${referencesToSave.length} selected passage${referencesToSave.length === 1 ? "" : "s"} saved.`, "info");
+  } catch (error) {
+    showMessage(error.message, "error");
+  } finally {
+    selectedVerseReferences = [];
+    window.getSelection()?.removeAllRanges();
+    updateSaveSelectionButton();
+
+    if (saveSelectionBtn) {
+      saveSelectionBtn.disabled = false;
+    }
   }
 }
 
@@ -414,6 +1125,8 @@ function loadSavedVerses() {
     savedVerses = [];
   }
   renderSavedVerses();
+  updateDashboard();
+
   migrateSavedVersesToLatestHtml();
 }
 
@@ -451,6 +1164,8 @@ async function migrateSavedVersesToLatestHtml() {
 
   persistSavedVerses();
   renderSavedVerses();
+  updateDashboard();
+
 
   if (currentReference) {
     const currentSavedVerse = getCurrentSavedVerse();
@@ -470,6 +1185,10 @@ function isCurrentVerseSaved() {
   return savedVerses.some(v => v.reference.toLowerCase() === currentReference.toLowerCase());
 }
 
+function isReferenceSaved(reference) {
+  return savedVerses.some(v => v.reference.toLowerCase() === String(reference || "").toLowerCase());
+}
+
 function updateSavePracticeButton() {
   if (!saveBtn) return;
 
@@ -487,16 +1206,121 @@ function getScoreClass(score) {
   return "score-high";
 }
 
+
 function getAttemptsLabel(attempts) {
   if (attempts < 10) return "Just started";
   if (attempts < 50) return "Building consistency";
   return "Well practised";
 }
 
+function getScoreEncouragement(score) {
+  if (score === null || score === undefined) return "Complete a practice round to see your progress.";
+  if (score === 100) return "Perfect recall — amazing work!";
+  if (score >= 80) return "Great job — you are really close!";
+  if (score >= 60) return "Good progress — keep practising.";
+  if (score >= 40) return "You are building familiarity. Try again!";
+  return "Good start — every attempt helps.";
+}
+
+
 function getScoreColor(score) {
   if (score < 50) return "#b42318";
   if (score < 70) return "#d97706";
   return "#137a4d";
+}
+
+function getLastScore(item) {
+  const history = Array.isArray(item.scoreHistory) ? item.scoreHistory : [];
+  if (!history.length) return null;
+  const lastScore = Number(history[history.length - 1]);
+  return Number.isFinite(lastScore) ? lastScore : null;
+}
+
+function getDashboardFocusVerse() {
+  if (!savedVerses.length) return null;
+
+  const unpractisedVerse = savedVerses.find(item => (item.attempts || 0) === 0);
+  if (unpractisedVerse) return unpractisedVerse;
+
+  const versesWithScores = savedVerses
+    .map(item => ({ item, lastScore: getLastScore(item) }))
+    .filter(entry => entry.lastScore !== null && entry.lastScore !== undefined);
+
+  if (versesWithScores.length) {
+    return versesWithScores.sort((a, b) => a.lastScore - b.lastScore)[0].item;
+  }
+
+  return savedVerses[0];
+}
+
+function getDashboardFocusMessage(item) {
+  if (!item) {
+    return "Load and save a verse to start tracking your practice progress.";
+  }
+
+  const attempts = item.attempts || 0;
+  const lastScore = getLastScore(item);
+
+  if (attempts === 0) {
+    return "This saved verse has not been practised yet. Start here to build momentum.";
+  }
+
+  if (lastScore !== null && lastScore < 70) {
+    return "This verse may need a little review. Try one more round to strengthen it.";
+  }
+
+  return "Keep this verse fresh with another practice round.";
+}
+
+function updateDashboard() {
+  if (!dashboardCard) return;
+
+  renderVerseOfTheDay();
+
+  const focusVerse = getDashboardFocusVerse();
+  const totalAttempts = savedVerses.reduce((sum, item) => sum + (item.attempts || 0), 0);
+  const unpractisedCount = savedVerses.filter(item => (item.attempts || 0) === 0).length;
+
+  const latestScores = savedVerses
+    .map(item => getLastScore(item))
+    .filter(score => score !== null && score !== undefined);
+
+  const averageScore = latestScores.length
+    ? Math.round(latestScores.reduce((sum, score) => sum + score, 0) / latestScores.length)
+    : null;
+
+  if (dashboardFocusReference) {
+    dashboardFocusReference.textContent = focusVerse ? focusVerse.reference : "Start your memory journey";
+  }
+
+  if (dashboardFocusMessage) {
+    dashboardFocusMessage.textContent = getDashboardFocusMessage(focusVerse);
+  }
+
+  if (dashboardSavedCount) dashboardSavedCount.textContent = String(savedVerses.length);
+  if (dashboardTotalAttempts) dashboardTotalAttempts.textContent = String(totalAttempts);
+  if (dashboardAverageScore) dashboardAverageScore.textContent = averageScore === null ? "No score yet" : `${averageScore}%`;
+  if (dashboardUnpractisedCount) dashboardUnpractisedCount.textContent = String(unpractisedCount);
+
+  if (dashboardPracticeBtn) {
+    dashboardPracticeBtn.classList.toggle("hidden", !focusVerse);
+    dashboardPracticeBtn.dataset.id = focusVerse ? focusVerse.id : "";
+  }
+
+  updateDashboardVisibility();
+}
+
+function updateDashboardVisibility() {
+  if (!dashboardCard) return;
+
+  const hasActiveCentreContent = [
+    verseCard,
+    practiceOptionsCard,
+    progressCard,
+    practiceCard
+  ].some(card => card && !card.classList.contains("hidden"));
+
+  dashboardCard.classList.toggle("hidden", hasActiveCentreContent);
 }
 
 function getDefaultDifficultyProgress() {
@@ -542,7 +1366,7 @@ function drawProgressChart(scoreHistory = []) {
   const scores = scoreHistory.filter(score => Number.isFinite(Number(score))).map(Number);
   const caption = document.querySelector(".progress-chart-caption");
   if (caption) {
-    caption.textContent = `${getSelectedDifficultyLabel()} difficulty · Attempt number vs score`;
+    caption.textContent = "All attempts · Attempt number vs score";
   }
 
   if (!scores.length) {
@@ -618,6 +1442,7 @@ function drawProgressChart(scoreHistory = []) {
   });
 }
 
+
 function getProgressAttemptsLabelElement() {
   let label = document.getElementById("progressAttemptsLabel");
 
@@ -629,6 +1454,46 @@ function getProgressAttemptsLabelElement() {
   }
 
   return label;
+}
+
+function getProgressCurrentScoreElement() {
+  let value = document.getElementById("progressCurrentScore");
+
+  if (
+    !value &&
+    progressBestScore &&
+    progressBestScore.parentElement &&
+    progressBestScore.parentElement.parentElement
+  ) {
+    const progressStatsRow = progressBestScore.parentElement.parentElement;
+    progressStatsRow.classList.add("progress-three-column-row");
+
+    const bestScoreCard = progressBestScore.parentElement;
+    const labelTemplate = bestScoreCard.querySelector(".progress-label");
+    const card = bestScoreCard.cloneNode(false);
+
+    const label = document.createElement("div");
+    label.className = labelTemplate ? labelTemplate.className : "progress-label";
+    label.textContent = "Current score";
+
+    value = progressBestScore.cloneNode(false);
+    value.id = "progressCurrentScore";
+    value.textContent = "No score yet";
+    value.className = progressBestScore.className;
+    value.classList.remove("score-low", "score-mid", "score-high");
+    value.classList.add("score-neutral");
+
+    const message = document.createElement("span");
+    message.id = "progressCurrentScoreMessage";
+    message.className = "progress-current-score-message";
+
+    card.appendChild(label);
+    card.appendChild(value);
+    card.appendChild(message);
+    progressStatsRow.insertBefore(card, progressAttempts.parentElement);
+  }
+
+  return value;
 }
 
 function getCurrentSavedVerse() {
@@ -648,13 +1513,27 @@ function showProgressForCurrentVerse() {
 
   progressReference.textContent = savedVerse.reference;
 
-  const difficultyProgress = getDifficultyProgress(savedVerse);
-  const bestScore = difficultyProgress.bestScore;
+  const bestScore = savedVerse.bestScore;
   progressBestScore.textContent = bestScore === null || bestScore === undefined
     ? "No score yet"
     : `${bestScore}%`;
   progressBestScore.classList.remove("score-neutral", "score-low", "score-mid", "score-high");
   progressBestScore.classList.add(getScoreClass(bestScore));
+
+  const lastScore = getLastScore(savedVerse);
+  const currentScoreValue = getProgressCurrentScoreElement();
+  if (currentScoreValue) {
+    currentScoreValue.textContent = lastScore === null || lastScore === undefined
+      ? "No score yet"
+      : `${lastScore}%`;
+    currentScoreValue.classList.remove("score-neutral", "score-low", "score-mid", "score-high");
+    currentScoreValue.classList.add(getScoreClass(lastScore));
+  }
+
+  const currentScoreMessage = document.getElementById("progressCurrentScoreMessage");
+  if (currentScoreMessage) {
+    currentScoreMessage.textContent = getScoreEncouragement(lastScore);
+  }
 
   const attempts = savedVerse.attempts || 0;
   progressAttempts.textContent = String(attempts);
@@ -665,25 +1544,30 @@ function showProgressForCurrentVerse() {
   }
 
   progressCard.classList.remove("hidden");
+  updateDashboardVisibility();
 
   requestAnimationFrame(() => {
-    drawProgressChart(difficultyProgress.scoreHistory || []);
+    drawProgressChart(savedVerse.scoreHistory || []);
   });
 }
 
 function hideProgressCard() {
   if (!progressCard) return;
   progressCard.classList.add("hidden");
+  updateDashboardVisibility();
 }
 
 function handleSaveOrPracticeButton() {
   if (currentVerse && currentReference && isCurrentVerseSaved()) {
     currentVerseSaved = true;
     verseCard.classList.add("hidden");
+    updateDashboardVisibility();
     practiceOptionsCard.classList.remove("hidden");
+    updateDashboardVisibility();
     hideProgressCard();
     practiceCard.classList.add("hidden");
-    resultCard.classList.add("hidden");
+    updateDashboardVisibility();
+    
     scorePill.textContent = "Not checked yet";
     showMessage("Choose a difficulty, then press Start Practice.", "info");
     syncMemoryListHeight();
@@ -702,6 +1586,8 @@ function clearLoadedVerse() {
   hintCount = 0;
   attemptRecordedThisRound = false;
   currentVerseSaved = false;
+  selectedVerseReferences = [];
+  updateSaveSelectionButton();
 
   referenceInput.value = "";
   verseReference.textContent = "Reference";
@@ -709,10 +1595,12 @@ function clearLoadedVerse() {
   scorePill.textContent = "Not checked yet";
 
   verseCard.classList.add("hidden");
+  updateDashboardVisibility();
   practiceOptionsCard.classList.add("hidden");
   hideProgressCard();
   practiceCard.classList.add("hidden");
-  resultCard.classList.add("hidden");
+  updateDashboardVisibility();
+  
 
   hideMessage();
   updateSavePracticeButton();
@@ -721,7 +1609,8 @@ function clearLoadedVerse() {
 
 function clearPractice() {
   practiceCard.classList.add("hidden");
-  resultCard.classList.add("hidden");
+  updateDashboardVisibility();
+  
   hideProgressCard();
   practiceArea.innerHTML = "";
   scorePill.textContent = "Not checked yet";
@@ -767,6 +1656,8 @@ function saveCurrentVerse() {
   practiceOptionsCard.classList.add("hidden");
   persistSavedVerses();
   renderSavedVerses();
+  updateDashboard();
+
   updateSavePracticeButton();
   hideProgressCard();
   syncMemoryListHeight();
@@ -787,10 +1678,10 @@ function renderSavedVerses() {
     div.className = "saved-item";
 
     const previewHtml = getSavedVersePreviewHtml(item);
-    const difficultyProgress = getDifficultyProgress(item);
-    const scoreText = difficultyProgress.bestScore === null || difficultyProgress.bestScore === undefined
+    const lastScore = getLastScore(item);
+    const scoreText = lastScore === null || lastScore === undefined
       ? "No score yet"
-      : `Best: ${difficultyProgress.bestScore}%`;
+      : `Last: ${lastScore}%`;
     const attemptsText = item.attempts || 0;
 
     div.innerHTML = `
@@ -831,23 +1722,27 @@ function loadSavedVerse(id, shouldStartPractice = true) {
   currentVerse = item.text;
   currentVerseHtml = item.html || "";
   currentVerseSaved = true;
-  referenceInput.value = item.reference;
+
+  if (referenceInput) referenceInput.value = item.reference;
+  if (versionSelect) versionSelect.value = item.versionId || item.version || "ESV";
+
   verseReference.textContent = currentReference;
   renderLoadedVerseText();
-  verseCard.classList.remove("hidden");
-  updateSavePracticeButton();
 
+  verseCard.classList.remove("hidden");
   practiceOptionsCard.classList.add("hidden");
   hideProgressCard();
   practiceCard.classList.add("hidden");
-  resultCard.classList.add("hidden");
+  updateDashboardVisibility();
+  updateSavePracticeButton();
 
   if (shouldStartPractice) {
     verseCard.classList.add("hidden");
     practiceOptionsCard.classList.remove("hidden");
-    hideProgressCard();
     practiceCard.classList.add("hidden");
-    resultCard.classList.add("hidden");
+    hideProgressCard();
+    updateDashboardVisibility();
+
     scorePill.textContent = "Not checked yet";
     showMessage(`${currentReference} loaded. Choose a difficulty, then press Start Practice.`, "info");
     syncMemoryListHeight();
@@ -861,6 +1756,8 @@ function deleteSavedVerse(id) {
   savedVerses = savedVerses.filter(v => v.id !== id);
   persistSavedVerses();
   renderSavedVerses();
+  updateDashboard();
+
   showMessage("Verse removed from saved list.", "info");
   syncMemoryListHeight();
 }
@@ -887,6 +1784,8 @@ function updateSavedVerseScore(percent) {
   savedVerses[index] = item;
   persistSavedVerses();
   renderSavedVerses();
+  updateDashboard();
+
   showProgressForCurrentVerse();
 }
 
@@ -897,34 +1796,48 @@ function createTest() {
   }
 
   verseCard.classList.add("hidden");
+  updateDashboardVisibility();
   practiceOptionsCard.classList.add("hidden");
   hideProgressCard();
-  resultCard.classList.add("hidden");
+  
   practiceCard.classList.remove("hidden");
+  updateDashboardVisibility();
   scorePill.textContent = "Not checked yet";
   hintCount = 0;
   attemptRecordedThisRound = false;
   checkBtn.disabled = false;
 
   const mode = getPracticeMode();
-  const memoryText = getPracticeVerseText(currentVerse);
-  currentWords = tokenizeVerse(memoryText);
+  const practiceReference = getPracticeReferenceParts(currentReference);
+  const versePracticeText = getPracticeVerseText(currentVerse);
+  currentWords = tokenizeVerse(versePracticeText);
 
   if (mode === "blank") {
     practiceTitle.textContent = "Fill in the missing words";
     const ratio = difficultyMap[difficultySelect.value] || 0.4;
     blankIndexes = chooseBlankIndexes(currentWords, ratio);
 
-    practiceArea.innerHTML = currentWords.map(part => {
+    const referenceHtml = currentReference
+      ? `<div class="practice-reference-heading">
+          <span>${escapeHtml(practiceReference.book)}</span>
+          ${practiceReference.numbers ? buildReferenceNumberPracticeHtml(practiceReference.numbers) : ""}
+        </div>`
+      : "";
+
+    practiceArea.innerHTML = referenceHtml + currentWords.map(part => {
       if (!part.isWord) return escapeHtml(part.token);
 
       if (blankIndexes.includes(part.index)) {
-        const width = Math.max(70, Math.min(180, part.token.length * 16));
+        const width = Math.max(78, Math.min(260, part.token.length * 22 + 24));
         return `<input class="blank-input" data-answer="${escapeAttr(part.token)}" style="width:${width}px" autocomplete="off" />`;
       }
 
       return escapeHtml(part.token);
     }).join("");
+
+    practiceArea.querySelectorAll(".blank-input").forEach(input => {
+      input.addEventListener("keydown", handleBlankInputKeydown);
+    });
   }
 
   if (mode === "first-letter") {
@@ -948,6 +1861,8 @@ function createTest() {
   }
 
   syncMemoryListHeight();
+
+  scrollToTopOfApp();
 }
 
 async function loadVerse() {
@@ -963,7 +1878,8 @@ async function loadVerse() {
   hideMessage();
 
   try {
-    const response = await fetch(`/api/verse?reference=${encodeURIComponent(reference)}`);
+    const selectedVersion = getSelectedVersion();
+    const response = await fetch(`/api/verse?reference=${encodeURIComponent(reference)}&version=${encodeURIComponent(selectedVersion)}`);
     const data = await response.json();
 
     if (!response.ok) {
@@ -982,7 +1898,8 @@ async function loadVerse() {
     practiceOptionsCard.classList.add("hidden");
     hideProgressCard();
     practiceCard.classList.add("hidden");
-    resultCard.classList.add("hidden");
+    updateDashboardVisibility();
+    
     updateSavePracticeButton();
 
     if (isCurrentVerseSaved()) {
@@ -1017,17 +1934,16 @@ function checkBlankAnswers() {
     const expected = normalizeAnswer(input.dataset.answer);
     const actual = normalizeAnswer(input.value);
 
-    input.classList.remove("correct", "wrong", "revealed", "corrected");
+    input.classList.remove("correct", "wrong", "corrected");
 
-    if (actual && actual === expected) {
+    if (input.dataset.usedHint === "true") {
+      input.classList.add("revealed");
+    } else if (actual && actual === expected) {
       input.classList.add("correct");
       correct++;
     } else {
-      input.value = input.dataset.answer || "";
-      input.classList.add("corrected");
+      input.classList.add("wrong");
     }
-
-    input.disabled = true;
   });
 
   attemptRecordedThisRound = true;
@@ -1063,24 +1979,12 @@ function checkFullRecall() {
 
   const percent = Math.round((correct / max) * 100);
   showResult(percent, `${correct} out of ${max} words matched in order.`);
-  resultDetails.innerHTML += `
-    <div style="margin-top:14px">
-      <strong>Verse answer:</strong>
-      <p style="line-height:1.9">${comparison}</p>
-    </div>
-  `;
 }
 
 function showResult(percent, detail) {
-  resultCard.classList.remove("hidden");
-  bigScore.textContent = `${percent}%`;
   scorePill.textContent = `${percent}%`;
-  resultTitle.textContent = percent >= 90 ? "Strong memory!" : percent >= 70 ? "Almost there" : "Keep practising";
-  resultDetails.innerHTML = `
-    <p>${escapeHtml(detail)}</p>
-    <p>${percent >= 90 ? "Great job — you reached the 90% mastery target." : "Try again, use hints, or reduce the difficulty for one round."}</p>
-  `;
   updateSavedVerseScore(percent);
+  showProgressForCurrentVerse();
   syncMemoryListHeight();
 }
 
@@ -1098,7 +2002,7 @@ function revealVerse() {
     });
 
     scorePill.textContent = "Revealed";
-    resultCard.classList.add("hidden");
+    
     checkBtn.disabled = true;
     syncMemoryListHeight();
     return;
@@ -1112,7 +2016,7 @@ function revealVerse() {
   }
 
   scorePill.textContent = "Revealed";
-  resultCard.classList.add("hidden");
+  
   checkBtn.disabled = true;
 }
 
@@ -1131,11 +2035,10 @@ function showHint() {
     const input = emptyInputs[0];
     const answer = input.dataset.answer || "";
     input.value = answer;
+    input.dataset.usedHint = "true";
     input.classList.remove("correct", "wrong", "corrected");
     input.classList.add("revealed");
-    input.disabled = true;
     hintCount++;
-    showMessage(`Hint used: one word revealed. Hints used this round: ${hintCount}.`, "info");
     return;
   }
 
@@ -1152,7 +2055,6 @@ function showHint() {
   input.value = `${input.value}${input.value.trim() ? " " : ""}${nextWord}`;
   input.focus();
   hintCount++;
-  showMessage(`Hint used: one word revealed. Hints used this round: ${hintCount}.`, "info");
 }
 
 function checkAnswer() {
@@ -1175,6 +2077,19 @@ referenceInput.addEventListener("keydown", event => {
   if (event.key === "Enter") loadVerse();
 });
 saveBtn.addEventListener("click", handleSaveOrPracticeButton);
+if (saveSelectionBtn) {
+  saveSelectionBtn.addEventListener("click", saveSelectedVerses);
+}
+if (verseText) {
+  verseText.addEventListener("mouseup", () => setTimeout(updateSaveSelectionButton, 0));
+  verseText.addEventListener("keyup", () => setTimeout(updateSaveSelectionButton, 0));
+  verseText.addEventListener("touchend", () => setTimeout(updateSaveSelectionButton, 0));
+
+  document.addEventListener("selectionchange", () => {
+    if (!currentReference || !currentVerse) return;
+    setTimeout(updateSaveSelectionButton, 0);
+  });
+}
 if (clearLoadedBtn) {
   clearLoadedBtn.addEventListener("click", clearLoadedVerse);
 }
@@ -1188,6 +2103,26 @@ revealBtn.addEventListener("click", revealVerse);
 newTestBtn.addEventListener("click", createTest);
 copyBtn.addEventListener("click", copyVerse);
 savedSearch.addEventListener("input", renderSavedVerses);
+
+if (dashboardPracticeBtn) {
+  dashboardPracticeBtn.addEventListener("click", () => {
+    const focusId = dashboardPracticeBtn.dataset.id;
+    if (!focusId) return;
+    loadSavedVerse(focusId, true);
+  });
+}
+
+if (saveVerseOfTheDayBtn) {
+  saveVerseOfTheDayBtn.addEventListener("click", saveVerseOfTheDay);
+}
+
+if (loadVerseOfTheDayBtn) {
+  loadVerseOfTheDayBtn.addEventListener("click", loadVerseOfTheDayIntoMainView);
+}
+
+if (versionSelect) {
+  versionSelect.addEventListener("change", loadVerseOfTheDay);
+}
 
 savedVersesList.addEventListener("click", event => {
   const button = event.target.closest("button");
@@ -1207,6 +2142,8 @@ if (clearSavedBtn) {
     savedVerses = [];
     persistSavedVerses();
     renderSavedVerses();
+    updateDashboard();
+
     showMessage("All saved verses cleared.", "info");
     syncMemoryListHeight();
   });
@@ -1214,9 +2151,10 @@ if (clearSavedBtn) {
 
 difficultySelect.addEventListener("change", () => {
   syncDifficultyPicker();
-  resultCard.classList.add("hidden");
+  
   hideProgressCard();
   practiceCard.classList.add("hidden");
+  updateDashboardVisibility();
   syncMemoryListHeight();
 });
 
@@ -1233,9 +2171,22 @@ if (difficultyPicker) {
 if (modeSelect) {
   modeSelect.addEventListener("change", () => {
     practiceCard.classList.add("hidden");
-    resultCard.classList.add("hidden");
+    updateDashboardVisibility();
+    
   });
 }
+
+document.addEventListener("click", event => {
+
+  const clickedButton = event.target.closest("button");
+
+  if (!clickedButton) return;
+
+  if (clickedButton === saveSelectionBtn) return;
+
+  scrollToTopOfApp();
+
+});
 
 async function loadFeedbacks() {
   if (!feedbackList) return;
@@ -1366,8 +2317,11 @@ if (clearFeedbackBtn) {
 
 window.addEventListener("resize", syncMemoryListHeight);
 
-referenceInput.value = "";
+const selectedVersion = getSelectedVersion();
 syncDifficultyPicker();
+loadBibleVersions();
 loadSavedVerses();
+updateDashboard();
+updateDashboardVisibility();
 loadFeedbacks();
 syncMemoryListHeight();

@@ -272,6 +272,102 @@ button:disabled { opacity: .55; cursor: not-allowed; }
   color: var(--blue);
 }
 
+.dashboard-card {
+  display: grid;
+  gap: 16px;
+}
+
+.dashboard-votd,
+.dashboard-focus {
+  display: grid;
+  gap: 12px;
+}
+
+.dashboard-votd {
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--line);
+}
+
+.dashboard-verse-text {
+  max-height: 220px;
+  overflow-y: auto;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 18px 20px;
+  color: #44413c;
+  font-family: Baskerville, "Libre Baskerville", "Palatino Linotype", Palatino, Georgia, "Times New Roman", serif;
+  font-size: 22px;
+  line-height: 1.7;
+}
+
+.dashboard-verse-text .verse-number,
+.dashboard-verse-text .verse-num,
+.dashboard-verse-text .verse-num__verse {
+  position: relative;
+  top: -0.52em;
+  margin-right: 0.25em;
+  color: #8b7a68;
+  font-family: Arial, Helvetica, sans-serif !important;
+  font-size: 0.48em;
+  font-weight: 800;
+  line-height: 0;
+  vertical-align: baseline;
+}
+
+.dashboard-verse-text p {
+  margin: 0 0 0.9em;
+}
+
+.dashboard-verse-text p:last-child {
+  margin-bottom: 0;
+}
+
+.dashboard-focus-message {
+  margin: 0;
+  color: var(--muted);
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.55;
+}
+
+.dashboard-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.dashboard-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.dashboard-stat {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 14px;
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+.dashboard-stat-label {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.3;
+}
+
+.dashboard-stat strong {
+  color: var(--primary);
+  font-size: 22px;
+  font-weight: 900;
+  line-height: 1.2;
+}
+
 .hidden { display: none !important; }
 
 .section-heading {
@@ -307,6 +403,32 @@ button:disabled { opacity: .55; cursor: not-allowed; }
   font-family: Baskerville, "Libre Baskerville", "Palatino Linotype", Palatino, Georgia, "Times New Roman", serif;
   color: #3f3a34;
   letter-spacing: 0.005em;
+}
+
+.practice-reference-heading {
+  display: flex;
+  align-items: baseline;
+  gap: 0.28em;
+  margin: 0 0 0.65em;
+  font-family: Georgia, "Times New Roman", serif !important;
+  color: var(--text);
+  font-size: 1.28em;
+  font-style: normal;
+  font-weight: 900;
+  line-height: 1.15;
+}
+
+.practice-reference-heading .reference-blank-input {
+  font-family: Georgia, "Times New Roman", serif !important;
+  font-size: 1em;
+  font-style: normal;
+  font-weight: 900;
+}
+
+.practice-reference-heading .reference-punctuation {
+  color: var(--text);
+  font-style: normal;
+  font-weight: 900;
 }
 
 .verse-text,
@@ -538,6 +660,19 @@ button:disabled { opacity: .55; cursor: not-allowed; }
   font-weight: 800;
 }
 
+.progress-current-score-message {
+  display: block;
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+#progressCurrentScore {
+  display: block;
+}
+
 .progress-chart-wrap {
   margin-top: 16px;
   background: #fff;
@@ -658,6 +793,52 @@ button:disabled { opacity: .55; cursor: not-allowed; }
   vertical-align: baseline;
 }
 
+.selection-save-hint {
+  margin: 10px 2px 0;
+  color: var(--muted);
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.45;
+}
+
+.saved-verse-highlight {
+  background: rgba(255, 243, 205, 0.85);
+  border-radius: 6px;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+  padding: 0 3px;
+}
+
+.saved-verse-marker {
+  color: #8a5a00 !important;
+  background: rgba(255, 243, 205, 0.95);
+  border-radius: 999px;
+  padding: 0 4px;
+}
+
+button.ghost { background: transparent; }
+button.ghost:hover { background: #f4eadc; }
+
+#saveSelectionBtn {
+  position: fixed;
+  z-index: 1000;
+  color: var(--blue);
+  border-color: #bfd7ff;
+  background: #eef5ff;
+  box-shadow: 0 10px 24px rgba(52, 34, 18, 0.18);
+}
+
+#saveSelectionBtn:hover {
+  color: #244b80;
+  border-color: #9fc2f5;
+  background: #dcecff;
+}
+
+#saveSelectionBtn.hidden {
+  display: none;
+}
+
 .saved-verse-preview h1,
 .saved-verse-preview h2,
 .saved-verse-preview h3,
@@ -715,7 +896,7 @@ button:disabled { opacity: .55; cursor: not-allowed; }
 }
 
 .feedback-form textarea {
-  min-height: 120px;
+  min-height: 50px;
   resize: vertical;
 }
 
@@ -825,6 +1006,10 @@ footer {
     max-height: 430px;
     flex: initial;
   }
+
+  .dashboard-stats-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 720px) {
@@ -832,7 +1017,7 @@ footer {
   .controls { align-items: stretch; }
   .field, .field.grow, .controls button { width: 100%; }
   .practice-options-grid { grid-template-columns: 1fr; }
-  .verse-text, .practice-area { font-size: 20px; }
+  .verse-text, .practice-area, .dashboard-verse-text { font-size: 20px; }
   .big-score { font-size: 40px; }
   .progress-grid { grid-template-columns: 1fr; }
   .difficulty-picker {
@@ -841,5 +1026,59 @@ footer {
   .progress-chart-heading {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .dashboard-stats-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.progress-three-column-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+  align-items: stretch;
+}
+
+.progress-three-column-row > * {
+  width: 100%;
+  min-width: 0;
+}
+
+@media (max-width: 900px) {
+  .progress-three-column-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+.controls {
+  display: grid;
+  grid-template-columns: minmax(220px, 280px) minmax(320px, 1fr) auto;
+  align-items: end;
+  gap: 16px;
+}
+
+.controls .version-field {
+  min-width: 0;
+  width: 100%;
+}
+
+.controls .field.grow {
+  min-width: 0;
+  width: 100%;
+}
+
+.controls #loadBtn {
+  align-self: end;
+  white-space: nowrap;
+}
+
+@media (max-width: 900px) {
+  .controls {
+    grid-template-columns: 1fr;
+  }
+
+  .controls #loadBtn {
+    width: 100%;
   }
 }

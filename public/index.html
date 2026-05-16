@@ -21,6 +21,13 @@
     <section class="layout">
       <div class="main-column">
         <section class="card controls">
+          <label class="field version-field">
+            <span>Bible Version</span>
+            <select id="versionSelect">
+              <option value="ESV" selected>ESV — English Standard Version</option>
+            </select>
+          </label>
+          
           <div class="field grow">
             <label for="referenceInput">Bible reference</label>
             <input id="referenceInput" type="text" placeholder="e.g. John 3:16, Psalm 23:1-3" />
@@ -30,6 +37,42 @@
         </section>
 
         <section id="messageBox" class="message hidden"></section>
+        <section id="dashboardCard" class="card dashboard-card">
+          <div class="dashboard-votd">
+            <div class="section-heading-row">
+              <div>
+                <p class="eyebrow">Verse of the Day</p>
+                <h2 id="verseOfTheDayReference">Loading today’s verse...</h2>
+              </div>
+            </div>
+
+            <div id="verseOfTheDayText" class="dashboard-verse-text">
+              Preparing a verse for today.
+            </div>
+
+            <div class="dashboard-actions">
+              <button id="saveVerseOfTheDayBtn" type="button" class="primary hidden">Save Verse of the Day</button>
+              <button id="loadVerseOfTheDayBtn" type="button" class="ghost hidden">Load Verse</button>
+            </div>
+          </div>
+
+          <div class="dashboard-focus">
+            <div class="section-heading-row">
+              <div>
+                <p class="eyebrow">Today’s Practice Focus</p>
+                <h2 id="dashboardFocusReference">Start your memory journey</h2>
+              </div>
+            </div>
+
+            <p id="dashboardFocusMessage" class="dashboard-focus-message">
+              Load and save a verse to start tracking your practice progress.
+            </p>
+
+            <div class="dashboard-actions">
+              <button id="dashboardPracticeBtn" type="button" class="primary hidden">Practice Now</button>
+            </div>
+          </div>
+        </section>
 
         <section id="verseCard" class="card verse-card hidden">
           <div class="section-heading">
@@ -39,11 +82,15 @@
             </div>
             <div class="button-row compact">
               <button id="saveBtn" class="primary">Save Verse</button>
+              <button id="saveSelectionBtn" type="button" class="ghost hidden">Save Selected Verse</button>
               <button id="copyBtn" class="ghost">Copy</button>
               <button id="clearLoadedBtn" type="button" class="ghost">Clear</button>
             </div>
           </div>
           <div id="verseText" class="verse-text"></div>
+          <p id="selectionSaveHint" class="selection-save-hint hidden">
+            Highlight a full verse in the loaded passage to save it.
+          </p>
         </section>
 
         <section id="practiceOptionsCard" class="card practice-options-card hidden">
@@ -139,17 +186,6 @@
             <button id="revealBtn">Reveal Verse</button>
             <button id="newTestBtn">New Test</button>
           </div>
-        </section>
-
-        <section id="resultCard" class="card result-card hidden">
-          <div class="section-heading">
-            <div>
-              <p class="label">Result</p>
-              <h2 id="resultTitle">Your score</h2>
-            </div>
-            <div class="big-score" id="bigScore">0%</div>
-          </div>
-          <div id="resultDetails" class="result-details"></div>
         </section>
       </div>
 
