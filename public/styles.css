@@ -448,7 +448,17 @@ button:disabled { opacity: .55; cursor: not-allowed; }
 .verse-text .subheading,
 .verse-text .verse-heading,
 .verse-text .passage-heading,
-.verse-text .extra_text {
+.verse-text .extra_text,
+.verse-text .s,
+.verse-text .s1,
+.verse-text .s2,
+.verse-text .s3,
+.verse-text .r,
+.dashboard-verse-text .s,
+.dashboard-verse-text .s1,
+.dashboard-verse-text .s2,
+.dashboard-verse-text .s3,
+.dashboard-verse-text .r {
   display: block;
   margin: 0 0 0.25em;
   color: #44413c;
@@ -472,7 +482,17 @@ button:disabled { opacity: .55; cursor: not-allowed; }
 .verse-text .subheading + p,
 .verse-text .verse-heading + p,
 .verse-text .passage-heading + p,
-.verse-text .extra_text + p {
+.verse-text .extra_text + p,
+.verse-text .s + p,
+.verse-text .s1 + p,
+.verse-text .s2 + p,
+.verse-text .s3 + p,
+.verse-text .r + p,
+.dashboard-verse-text .s + p,
+.dashboard-verse-text .s1 + p,
+.dashboard-verse-text .s2 + p,
+.dashboard-verse-text .s3 + p,
+.dashboard-verse-text .r + p {
   margin-top: 0;
 }
 
@@ -852,6 +872,11 @@ button.ghost:hover { background: #f4eadc; }
 .saved-verse-preview .verse-heading,
 .saved-verse-preview .passage-heading,
 .saved-verse-preview .extra_text,
+.saved-verse-preview .s,
+.saved-verse-preview .s1,
+.saved-verse-preview .s2,
+.saved-verse-preview .s3,
+.saved-verse-preview .r,
 .saved-verse-preview .chapter-num,
 .saved-verse-preview .chapter-number {
   display: none;
@@ -1051,34 +1076,80 @@ footer {
   }
 }
 
-.controls {
+/* Final search controls layout */
+.card.controls {
   display: grid;
-  grid-template-columns: minmax(220px, 280px) minmax(320px, 1fr) auto;
+  grid-template-columns: minmax(170px, 0.95fr) minmax(150px, 0.75fr) minmax(230px, 1.1fr) 140px;
   align-items: end;
-  gap: 16px;
+  gap: 14px;
+  overflow: hidden;
 }
 
-.controls .version-field {
+.card.controls .field,
+.card.controls .version-field,
+.card.controls .book-field,
+.card.controls .field.grow {
   min-width: 0;
   width: 100%;
 }
 
-.controls .field.grow {
-  min-width: 0;
-  width: 100%;
+.card.controls label,
+.card.controls .field > span {
+  display: block;
+  margin-bottom: 2px;
+  color: var(--muted);
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 13px;
+  font-weight: 800;
 }
 
-.controls #loadBtn {
-  align-self: end;
+.card.controls select,
+.card.controls input {
+  width: 100%;
+  min-height: 54px;
+  border-radius: 16px;
+  font-size: 17px;
+}
+
+.card.controls select {
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-@media (max-width: 900px) {
-  .controls {
+.card.controls #loadBtn {
+  align-self: end;
+  width: 140px;
+  min-width: 0;
+  height: 54px;
+  padding: 0 16px;
+  border-radius: 16px;
+  font-size: 16px;
+  white-space: nowrap;
+}
+
+@media (max-width: 1180px) {
+  .card.controls {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .card.controls .field.grow {
+    grid-column: 1 / -1;
+  }
+
+  .card.controls #loadBtn {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+}
+
+@media (max-width: 720px) {
+  .card.controls {
     grid-template-columns: 1fr;
   }
 
-  .controls #loadBtn {
-    width: 100%;
+  .card.controls .field.grow,
+  .card.controls #loadBtn {
+    grid-column: auto;
   }
 }

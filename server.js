@@ -11,6 +11,8 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const ESV_API_KEY = process.env.ESV_API_KEY;
 const YOUVERSION_API_KEY = process.env.YOUVERSION_API_KEY;
+const API_BIBLE_KEY = process.env.API_BIBLE_KEY;
+const API_BIBLE_BASE_URL = process.env.API_BIBLE_BASE_URL || "https://rest.api.bible/v1";
 const YOUVERSION_BIBLES_URL = process.env.YOUVERSION_BIBLES_URL || "https://api.youversion.com/v1/bibles";
 const YOUVERSION_API_BASE_URL = process.env.YOUVERSION_API_BASE_URL || "https://api.youversion.com/v1";
 const YOUVERSION_LANGUAGE_RANGES = process.env.YOUVERSION_LANGUAGE_RANGES || "eng";
@@ -22,6 +24,27 @@ const resend = RESEND_API_KEY ? new Resend(RESEND_API_KEY) : null;
 let youVersionBiblesCache = null;
 let youVersionBiblesCacheLoadedAt = 0;
 const YOUVERSION_BIBLES_CACHE_TTL_MS = 1000 * 60 * 60;
+
+const API_BIBLE_VERSIONS = [
+  {
+    id: "78a9f6124f344018-01",
+    abbreviation: "NIV",
+    displayAbbreviation: "NIV",
+    title: "New International Version 2011"
+  },
+  {
+    id: "d6e14a625393b4da-01",
+    abbreviation: "NLT",
+    displayAbbreviation: "NLT",
+    title: "New Living Translation"
+  },
+  {
+    id: "63097d2a0a2f7db3-01",
+    abbreviation: "NKJV",
+    displayAbbreviation: "NKJV",
+    title: "New King James Version"
+  }
+];
 
 const BIBLE_CODE_NAMES = {
   GEN: "Genesis",
@@ -170,17 +193,23 @@ app.use(express.static(path.join(__dirname, "public")));
 app.get("/api/verse", async (req, res) => {
   try {
     const reference = String(req.query.reference || "").trim();
-    const requestedVersion = String(req.query.version || "ESV").trim().toUpperCase();
+    const requestedVersion = String(req.query.version || "ESV").trim();
+    const requestedVersionUpper = requestedVersion.toUpperCase();
 
     if (!reference) {
       return res.status(400).json({ error: "Please enter a Bible reference." });
     }
 
-    if (requestedVersion !== "ESV") {
-      return loadYouVersionPassage(reference, requestedVersion, req, res);
+    if (requestedVersionUpper === "ESV") {
+      return loadEsvPassage(reference, req, res);
     }
 
-    return loadEsvPassage(reference, req, res);
+    const apiBibleVersion = resolveApiBibleVersion(requestedVersion);
+    if (apiBibleVersion) {
+      return loadApiBiblePassage(reference, apiBibleVersion, req, res);
+    }
+
+    return loadYouVersionPassage(reference, requestedVersion, req, res);
   } catch (error) {
     console.error(error);
     res.status(500).json({
@@ -265,7 +294,8 @@ app.get("/api/verse-of-the-day", async (req, res) => {
       });
     }
 
-    const requestedVersion = String(req.query.version || "ESV").trim().toUpperCase();
+    const requestedVersion = String(req.query.version || "ESV").trim();
+    const requestedVersionUpper = requestedVersion.toUpperCase();
     const votdList = await fetchYouVersionVerseOfTheDayList();
     const day = getCurrentDayOfYear();
     const verseOfTheDay = votdList.find(item => Number(item.day) === day) || votdList[0];
@@ -283,8 +313,13 @@ app.get("/api/verse-of-the-day", async (req, res) => {
       day
     };
 
-    if (requestedVersion === "ESV") {
+    if (requestedVersionUpper === "ESV") {
       return loadEsvPassage(humanReference, req, res, metadata);
+    }
+
+    const apiBibleVersion = resolveApiBibleVersion(requestedVersion);
+    if (apiBibleVersion) {
+      return loadApiBiblePassage(humanReference, apiBibleVersion, req, res, metadata);
     }
 
     return loadYouVersionPassage(humanReference, requestedVersion, req, res, metadata);
@@ -410,6 +445,7 @@ app.get("/api/youversion/bibles-test", async (req, res) => {
   }
 });
 
+
 app.get("/api/bible-versions", async (req, res) => {
   try {
     const versions = [
@@ -422,14 +458,13 @@ app.get("/api/bible-versions", async (req, res) => {
       }
     ];
 
-    if (YOUVERSION_API_KEY) {
-      const youVersionBibles = await fetchYouVersionBibles();
-      versions.push(...youVersionBibles.map(bible => ({
+    if (API_BIBLE_KEY) {
+      versions.push(...API_BIBLE_VERSIONS.map(bible => ({
         id: bible.id,
         abbreviation: bible.abbreviation,
         displayAbbreviation: bible.displayAbbreviation,
         title: bible.title,
-        source: "youversion"
+        source: "api-bible"
       })));
     }
 
@@ -438,6 +473,126 @@ app.get("/api/bible-versions", async (req, res) => {
     console.error("Bible versions loading error:", error);
     res.status(500).json({
       error: error.message || "Could not load Bible versions."
+    });
+  }
+});
+
+// --- API.Bible bibles test route ---
+app.get("/api/api-bible/bibles-test", async (req, res) => {
+  try {
+    if (!API_BIBLE_KEY) {
+      return res.status(500).json({
+        error: "Missing API_BIBLE_KEY. Add it to your .env file first."
+      });
+    }
+
+    const biblesUrl = new URL(`${API_BIBLE_BASE_URL.replace(/\/$/, "")}/bibles`);
+    biblesUrl.searchParams.append("language", String(req.query.language || "eng"));
+
+    const response = await fetch(biblesUrl, {
+      headers: {
+        Accept: "application/json",
+        "api-key": API_BIBLE_KEY
+      }
+    });
+
+    const contentType = response.headers.get("content-type") || "";
+    const rawBody = await response.text();
+
+    let body;
+    try {
+      body = contentType.includes("application/json") ? JSON.parse(rawBody) : rawBody;
+    } catch {
+      body = rawBody;
+    }
+
+    if (!response.ok) {
+      return res.status(response.status).json({
+        error: "API.Bible bibles test request failed.",
+        status: response.status,
+        statusText: response.statusText,
+        endpoint: biblesUrl.toString(),
+        responsePreview: typeof body === "string"
+          ? body.slice(0, 800)
+          : body
+      });
+    }
+
+    const bibles = Array.isArray(body?.data) ? body.data : [];
+
+    res.json({
+      success: true,
+      endpoint: biblesUrl.toString(),
+      count: bibles.length,
+      sample: bibles.slice(0, 10)
+    });
+  } catch (error) {
+    console.error("API.Bible bibles test error:", error);
+    res.status(500).json({
+      error: "Something went wrong while testing the API.Bible bibles endpoint.",
+      details: error.message
+    });
+  }
+});
+
+app.get("/api/api-bible/passage-test", async (req, res) => {
+  try {
+    if (!API_BIBLE_KEY) {
+      return res.status(500).json({
+        error: "Missing API_BIBLE_KEY. Add it to your .env file first."
+      });
+    }
+
+    const bibleId = String(req.query.bibleId || "78a9f6124f344018-01").trim();
+    const passageId = String(req.query.passageId || "JHN.3.16").trim();
+    const passageUrl = new URL(`${API_BIBLE_BASE_URL.replace(/\/$/, "")}/bibles/${encodeURIComponent(bibleId)}/passages/${encodeURIComponent(passageId)}`);
+
+    passageUrl.searchParams.append("content-type", "html");
+    passageUrl.searchParams.append("include-notes", "false");
+    passageUrl.searchParams.append("include-titles", "true");
+    passageUrl.searchParams.append("include-chapter-numbers", "false");
+    passageUrl.searchParams.append("include-verse-numbers", "true");
+    passageUrl.searchParams.append("include-verse-spans", "false");
+
+    const response = await fetch(passageUrl, {
+      headers: {
+        Accept: "application/json",
+        "api-key": API_BIBLE_KEY
+      }
+    });
+
+    const contentType = response.headers.get("content-type") || "";
+    const rawBody = await response.text();
+
+    let body;
+    try {
+      body = contentType.includes("application/json") ? JSON.parse(rawBody) : rawBody;
+    } catch {
+      body = rawBody;
+    }
+
+    if (!response.ok) {
+      return res.status(response.status).json({
+        error: "API.Bible passage test request failed.",
+        status: response.status,
+        statusText: response.statusText,
+        endpoint: passageUrl.toString(),
+        responsePreview: typeof body === "string"
+          ? body.slice(0, 800)
+          : body
+      });
+    }
+
+    res.json({
+      success: true,
+      endpoint: passageUrl.toString(),
+      response: body
+    });
+  } catch (error) {
+    console.error("API.Bible passage test error:", error);
+    res.status(500).json({
+      error: "Something went wrong while testing the API.Bible passage endpoint.",
+      details: error.message
     });
   }
 });
@@ -609,6 +764,17 @@ async function resolveYouVersionBibleVersion(version) {
     bible.abbreviation === requestedVersionUpper ||
     bible.displayAbbreviation.toUpperCase() === requestedVersionUpper ||
     bible.id === requestedVersion
+  );
+}
+
+function resolveApiBibleVersion(version) {
+  const requestedVersion = String(version || "").trim();
+  const requestedVersionUpper = requestedVersion.toUpperCase();
+
+  return API_BIBLE_VERSIONS.find(bible =>
+    bible.id === requestedVersion ||
+    bible.abbreviation.toUpperCase() === requestedVersionUpper ||
+    bible.displayAbbreviation.toUpperCase() === requestedVersionUpper
   );
 }
 
@@ -918,6 +1084,146 @@ function clearFeedbacks(req, res) {
 
 app.delete("/api/feedback", clearFeedbacks);
 app.post("/api/feedback/clear", clearFeedbacks);
+
+function normaliseApiBibleHtml(html) {
+  return String(html || "")
+    .replace(/<span([^>]*?)class="([^"]*\bv\b[^"]*)"([^>]*)>(\d+)<\/span>/g, '<sup class="verse-number">$4</sup> ')
+    .replace(/<span([^>]*?)class='([^"]*\bv\b[^']*)'([^>]*)>(\d+)<\/span>/g, '<sup class="verse-number">$4</sup> ')
+    .replace(/\s+<\/p>/g, "</p>")
+    .trim();
+}
+
+function extractPlainTextFromApiBibleHtml(html) {
+  return String(html || "")
+    .replace(/<p[^>]*class="[^"]*\bs\d*\b[^"]*"[^>]*>.*?<\/p>/g, " ")
+    .replace(/<p[^>]*class='[^']*\bs\d*\b[^']*'[^>]*>.*?<\/p>/g, " ")
+    .replace(/<span([^>]*?)class="([^"]*\bv\b[^"]*)"([^>]*)>\d+<\/span>/g, " ")
+    .replace(/<span([^>]*?)class='([^']*\bv\b[^']*)'([^>]*)>\d+<\/span>/g, " ")
+    .replace(/<sup([^>]*)class="([^"]*\bverse-number\b[^"]*)"([^>]*)>\d+<\/sup>/g, " ")
+    .replace(/<sup([^>]*)class='([^']*\bverse-number\b[^']*)'([^>]*)>\d+<\/sup>/g, " ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+// Helper to fetch a passage from API.Bible as JSON (single passageId)
+async function fetchApiBiblePassageJson(versionConfig, passageId) {
+  const passageUrl = new URL(`${API_BIBLE_BASE_URL.replace(/\/$/, "")}/bibles/${encodeURIComponent(versionConfig.id)}/passages/${encodeURIComponent(passageId)}`);
+
+  passageUrl.searchParams.append("content-type", "html");
+  passageUrl.searchParams.append("include-notes", "false");
+  passageUrl.searchParams.append("include-titles", "true");
+  passageUrl.searchParams.append("include-chapter-numbers", "false");
+  passageUrl.searchParams.append("include-verse-numbers", "true");
+  passageUrl.searchParams.append("include-verse-spans", "false");
+
+  const response = await fetch(passageUrl, {
+    headers: {
+      Accept: "application/json",
+      "api-key": API_BIBLE_KEY
+    }
+  });
+
+  const contentType = response.headers.get("content-type") || "";
+  const rawBody = await response.text();
+
+  let body;
+  try {
+    body = contentType.includes("application/json") ? JSON.parse(rawBody) : rawBody;
+  } catch {
+    body = rawBody;
+  }
+
+  return {
+    response,
+    body,
+    passageUrl
+  };
+}
+
+async function loadApiBiblePassage(reference, versionConfig, req, res, metadata = {}) {
+  try {
+    if (!API_BIBLE_KEY) {
+      return res.status(500).json({
+        error: "Missing API_BIBLE_KEY. Add it to your .env file first."
+      });
+    }
+
+    const parsedReference = parseYouVersionReference(reference);
+    if (!parsedReference) {
+      return res.status(400).json({
+        error: "Please enter a specific passage, for example John 3:16 or Romans 12:1-2."
+      });
+    }
+
+    const passageIds = parsedReference.hasExplicitVerse
+      ? expandYouVersionVersePart(parsedReference.versePart).map(verseNumber => `${parsedReference.bookCode}.${parsedReference.chapter}.${verseNumber}`)
+      : [`${parsedReference.bookCode}.${parsedReference.chapter}`];
+
+    if (parsedReference.hasExplicitVerse && !passageIds.length) {
+      return res.status(400).json({
+        error: "Please enter a valid verse number or range, for example John 3:16 or Romans 12:1-2."
+      });
+    }
+
+    const passageResponses = [];
+
+    for (const passageId of passageIds) {
+      const result = await fetchApiBiblePassageJson(versionConfig, passageId);
+
+      if (!result.response.ok) {
+        return res.status(result.response.status).json({
+          error: "API.Bible passage request failed.",
+          status: result.response.status,
+          statusText: result.response.statusText,
+          endpoint: result.passageUrl.toString(),
+          responsePreview: typeof result.body === "string"
+            ? result.body.slice(0, 800)
+            : result.body
+        });
+      }
+
+      passageResponses.push(result.body?.data);
+    }
+
+    const rawPassageHtml = passageResponses
+      .map(passage => String(passage?.content || "").trim())
+      .filter(Boolean)
+      .join("\n");
+
+    const passageHtml = normaliseApiBibleHtml(rawPassageHtml);
+    const canonicalReference = cleanReferenceText(
+      passageResponses.length === 1
+        ? passageResponses[0]?.reference || reference
+        : reference
+    );
+
+    if (!passageHtml) {
+      return res.status(404).json({
+        error: "No verse found. Check your reference, for example John 3:16."
+      });
+    }
+
+    const plainText = extractPlainTextFromApiBibleHtml(rawPassageHtml);
+
+    return res.json({
+      reference: canonicalReference,
+      text: plainText,
+      html: passageHtml,
+      query: reference,
+      version: versionConfig.displayAbbreviation,
+      versionId: versionConfig.id,
+      versionLabel: versionConfig.title,
+      source: "api-bible",
+      ...metadata
+    });
+  } catch (error) {
+    console.error("API.Bible passage load error:", error);
+    return res.status(500).json({
+      error: error.message || "Something went wrong while loading the API.Bible passage."
+    });
+  }
+}
 
 async function loadYouVersionPassage(reference, version, req, res, metadata = {}) {
   try {

@@ -1,4 +1,5 @@
 const referenceInput = document.getElementById("referenceInput");
+const bookSelect = document.getElementById("bookSelect");
 const versionSelect = document.getElementById("versionSelect");
 const difficultySelect = document.getElementById("difficultySelect");
 const difficultyPicker = document.getElementById("difficultyPicker");
@@ -23,7 +24,6 @@ const practiceArea = document.getElementById("practiceArea");
 const checkBtn = document.getElementById("checkBtn");
 const hintBtn = document.getElementById("hintBtn");
 const revealBtn = document.getElementById("revealBtn");
-const newTestBtn = document.getElementById("newTestBtn");
 const scorePill = document.getElementById("scorePill");
 const copyBtn = document.getElementById("copyBtn");
 const saveBtn = document.getElementById("saveBtn");
@@ -56,6 +56,7 @@ const submitFeedbackBtn = document.getElementById("submitFeedbackBtn");
 const feedbackList = document.getElementById("feedbackList");
 const feedbackStatus = document.getElementById("feedbackStatus");
 const clearFeedbackBtn = document.getElementById("clearFeedbackBtn");
+const newTestBtn = document.getElementById("newTestBtn");
 
 const STORAGE_KEY = "esvMemoryTrainerSavedVerses";
 const SAVED_VERSE_HTML_VERSION = 2;
@@ -2122,6 +2123,26 @@ if (loadVerseOfTheDayBtn) {
 
 if (versionSelect) {
   versionSelect.addEventListener("change", loadVerseOfTheDay);
+}
+
+if (bookSelect) {
+  bookSelect.addEventListener("change", () => {
+    const selectedBook = bookSelect.value;
+    if (!selectedBook || !referenceInput) return;
+
+    const currentReference = referenceInput.value.trim();
+    const chapterAndVerseMatch = currentReference.match(/\b\d+(?::[\d,\s-]+)?\s*$/);
+
+    if (chapterAndVerseMatch) {
+      referenceInput.value = `${selectedBook} ${chapterAndVerseMatch[0].trim()}`;
+    } else {
+      referenceInput.value = `${selectedBook} 1`;
+    }
+
+    referenceInput.focus();
+    referenceInput.setSelectionRange(referenceInput.value.length, referenceInput.value.length);
+    loadVerse();
+  });
 }
 
 savedVersesList.addEventListener("click", event => {
