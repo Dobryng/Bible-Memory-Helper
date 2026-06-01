@@ -58,6 +58,13 @@ const feedbackStatus = document.getElementById("feedbackStatus");
 const clearFeedbackBtn = document.getElementById("clearFeedbackBtn");
 const newTestBtn = document.getElementById("newTestBtn");
 
+const selectedVerseCount = document.getElementById("selectedVerseCount");
+const startSequenceBtn = document.getElementById("startSequenceBtn");
+const clearSequenceSelectionBtn = document.getElementById("clearSequenceSelectionBtn");
+const sequenceStatus = document.getElementById("sequenceStatus");
+const nextSequenceBtn = document.getElementById("nextSequenceBtn");
+const endSequenceBtn = document.getElementById("endSequenceBtn");
+
 const STORAGE_KEY = "esvMemoryTrainerSavedVerses";
 const SAVED_VERSE_HTML_VERSION = 2;
 
@@ -119,6 +126,26 @@ function sortVersesBibleOrder(verses) {
   });
 }
 
+function shuffleArray(items) {
+  const shuffled = [...items];
+
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+
+  return shuffled;
+}
+
+function getVersionDisplayForSavedItem(item) {
+  return item.version || item.versionLabel || "ESV";
+}
+
+// Helper to check if sequence practice is currently active
+function isSequencePracticeActive() {
+  return sequenceQueue.length > 0 && sequenceIndex >= 0;
+}
+
 let messageTimer = null;
 let messageFadeTimer = null;
 
@@ -133,6 +160,11 @@ let savedVerses = [];
 let currentVerseSaved = false;
 let selectedVerseReferences = [];
 let verseOfTheDayData = null;
+let selectedSavedVerseIds = new Set();
+let sequenceQueue = [];
+let sequenceIndex = -1;
+let sequenceScores = [];
+
 
 const difficultyMap = {
   easy: 0.25,
@@ -222,15 +254,19 @@ function syncMemoryListHeight() {
   if (!mainColumn || !savedCard) return;
 
   if (window.innerWidth <= 980) {
-    savedCard.style.height = "";
-    savedCard.style.maxHeight = "";
+    savedCard.style.removeProperty("height");
+    savedCard.style.removeProperty("max-height");
+    savedCard.style.removeProperty("--memory-list-height");
     return;
   }
 
   requestAnimationFrame(() => {
-    const mainHeight = Math.round(getMainColumnContentHeight());
-    savedCard.style.height = `${mainHeight}px`;
-    savedCard.style.maxHeight = `${mainHeight}px`;
+    const mainContentHeight = Math.round(getMainColumnContentHeight());
+    const targetHeight = `${Math.max(mainContentHeight, 360)}px`;
+
+    savedCard.style.setProperty("--memory-list-height", targetHeight);
+    savedCard.style.height = targetHeight;
+    savedCard.style.maxHeight = targetHeight;
   });
 }
 
@@ -322,6 +358,11 @@ function getPracticeVerseTextFromHtml(html) {
     "h4",
     "h5",
     "h6",
+    ".s",
+    ".s1",
+    ".s2",
+    ".s3",
+    ".r",
     ".heading",
     ".section-heading",
     ".chapter-heading",
@@ -382,10 +423,43 @@ function buildReferenceNumberPracticeHtml(referenceNumbers) {
     .join("");
 }
 
+function removePassageHeadingsFromHtml(html) {
+  const container = document.createElement("div");
+  container.innerHTML = html || "";
+
+  const headingSelectors = [
+    "h1",
+    "h2",
+    "h3",
+    "h4",
+    "h5",
+    "h6",
+    ".heading",
+    ".section-heading",
+    ".chapter-heading",
+    ".subheading",
+    ".verse-heading",
+    ".passage-heading",
+    ".extra_text",
+    ".s",
+    ".s1",
+    ".s2",
+    ".s3",
+    ".r"
+  ];
+
+  headingSelectors.forEach(selector => {
+    container.querySelectorAll(selector).forEach(element => element.remove());
+  });
+
+  return container.innerHTML.trim();
+}
+
 function removeKnownHeadingText(text) {
   const headingTexts = [];
 
   savedVerses.forEach(item => {
+    if (getVerseVersionKey(item) !== String(getSelectedVersion() || "ESV").trim().toUpperCase()) return;
     if (!item.html) return;
 
     const container = document.createElement("div");
@@ -404,7 +478,12 @@ function removeKnownHeadingText(text) {
       ".subheading",
       ".verse-heading",
       ".passage-heading",
-      ".extra_text"
+      ".extra_text",
+      ".s",
+      ".s1",
+      ".s2",
+      ".s3",
+      ".r"
     ];
 
     headingSelectors.forEach(selector => {
@@ -589,8 +668,12 @@ function renderVerseOfTheDay() {
   }
 
   verseOfTheDayReference.textContent = `${verseOfTheDayData.reference} · ${verseOfTheDayData.version || "ESV"}`;
-  verseOfTheDayText.innerHTML = verseOfTheDayData.html
-    ? formatVerseNumbers(verseOfTheDayData.html)
+  const verseOfTheDayHtml = verseOfTheDayData.html
+    ? removePassageHeadingsFromHtml(verseOfTheDayData.html)
+    : "";
+
+  verseOfTheDayText.innerHTML = verseOfTheDayHtml
+    ? formatVerseNumbers(verseOfTheDayHtml)
     : formatVerseNumbers(escapeHtml(verseOfTheDayData.text || ""));
 
   const alreadySaved = isVerseDataSaved(verseOfTheDayData);
@@ -622,12 +705,14 @@ async function loadVerseOfTheDay() {
 
     verseOfTheDayData = data;
     renderVerseOfTheDay();
+    syncMemoryListHeight();
   } catch (error) {
     console.error(error);
     verseOfTheDayReference.textContent = "Verse of the Day unavailable";
     verseOfTheDayText.textContent = error.message;
     if (saveVerseOfTheDayBtn) saveVerseOfTheDayBtn.classList.add("hidden");
     if (loadVerseOfTheDayBtn) loadVerseOfTheDayBtn.classList.add("hidden");
+    syncMemoryListHeight();
   }
 }
 
@@ -870,7 +955,7 @@ function getTextNodesBetweenVerseMarkers(marker, nextMarker) {
         if (!node.textContent.trim()) {
           return NodeFilter.FILTER_REJECT;
         }
-        if (node.parentElement?.closest("h1, h2, h3, h4, h5, h6, .heading, .section-heading, .chapter-heading, .subheading, .verse-heading, .passage-heading, .extra_text, .footnotes, .crossrefs")) {
+        if (node.parentElement?.closest("h1, h2, h3, h4, h5, h6, .heading, .section-heading, .chapter-heading, .subheading, .verse-heading, .passage-heading, .extra_text, .s, .s1, .s2, .s3, .r, .footnotes, .crossrefs")) {
           return NodeFilter.FILTER_REJECT;
         }
 
@@ -1001,7 +1086,11 @@ function markSavedVersesInLoadedPassage() {
 
   const savedVerseNumbers = new Set();
 
+  const currentVersionKey = String(getSelectedVersion() || "ESV").trim().toUpperCase();
+
   savedVerses.forEach(item => {
+    if (getVerseVersionKey(item) !== currentVersionKey) return;
+
     const itemParts = getReferenceBookAndChapter(item.reference);
     if (!itemParts) return;
     if (itemParts.book.toLowerCase() !== parts.book.toLowerCase()) return;
@@ -1050,7 +1139,8 @@ function renderLoadedVerseText() {
   updateSaveSelectionButton();
 }
 async function saveSelectedVerses() {
-  const referencesToSave = [...new Set(selectedVerseReferences)].filter(reference => !isReferenceSaved(reference));
+  const selectedVersion = getSelectedVersion();
+  const referencesToSave = [...new Set(selectedVerseReferences)].filter(reference => findSavedVerseIndexByReferenceAndVersion(reference, selectedVersion) < 0);
 
   if (!referencesToSave.length) {
     showMessage("Highlight a verse in the loaded passage first.", "error");
@@ -1064,7 +1154,6 @@ async function saveSelectedVerses() {
 
   try {
     for (const reference of referencesToSave) {
-      const selectedVersion = getSelectedVersion();
       const response = await fetch(`/api/verse?reference=${encodeURIComponent(reference)}&version=${encodeURIComponent(selectedVersion)}`);
       const data = await response.json();
 
@@ -1073,11 +1162,17 @@ async function saveSelectedVerses() {
       }
 
       const cleanReference = data.reference || reference;
-      const existingIndex = savedVerses.findIndex(v => v.reference.toLowerCase() === cleanReference.toLowerCase());
+      const existingIndex = findSavedVerseIndexByReferenceAndVersion(
+        cleanReference,
+        data.versionId || data.version || selectedVersion
+      );
 
       const verseRecord = {
         id: existingIndex >= 0 ? savedVerses[existingIndex].id : crypto.randomUUID(),
         reference: cleanReference,
+        version: data.version || selectedVersion,
+        versionId: data.versionId || selectedVersion,
+        versionLabel: data.versionLabel || "",
         text: cleanVerseText(data.text || ""),
         html: data.html || "",
         savedAt: new Date().toISOString(),
@@ -1144,7 +1239,8 @@ async function migrateSavedVersesToLatestHtml() {
 
   for (const item of versesToUpdate) {
     try {
-      const response = await fetch(`/api/verse?reference=${encodeURIComponent(item.reference)}`);
+      const versionToRefresh = item.versionId || item.version || "ESV";
+      const response = await fetch(`/api/verse?reference=${encodeURIComponent(item.reference)}&version=${encodeURIComponent(versionToRefresh)}`);
       const data = await response.json();
 
       if (!response.ok) {
@@ -1183,11 +1279,12 @@ async function migrateSavedVersesToLatestHtml() {
 }
 
 function isCurrentVerseSaved() {
-  return savedVerses.some(v => v.reference.toLowerCase() === currentReference.toLowerCase());
+  if (!currentReference) return false;
+  return findSavedVerseIndexByReferenceAndVersion(currentReference, getSelectedVersion()) >= 0;
 }
 
 function isReferenceSaved(reference) {
-  return savedVerses.some(v => v.reference.toLowerCase() === String(reference || "").toLowerCase());
+  return findSavedVerseIndexByReferenceAndVersion(reference, getSelectedVersion()) >= 0;
 }
 
 function updateSavePracticeButton() {
@@ -1198,6 +1295,121 @@ function updateSavePracticeButton() {
   } else {
     saveBtn.textContent = "Save Verse";
   }
+}
+
+function updateSequenceSelectionUi() {
+  const selectedCount = selectedSavedVerseIds.size;
+
+  if (selectedVerseCount) {
+    selectedVerseCount.textContent = selectedCount === 1
+      ? "1 verse selected"
+      : `${selectedCount} verses selected`;
+  }
+
+  if (startSequenceBtn) {
+    startSequenceBtn.disabled = selectedCount < 2;
+  }
+
+  if (clearSequenceSelectionBtn) {
+    clearSequenceSelectionBtn.disabled = selectedCount === 0;
+  }
+}
+
+function clearSequenceSelection() {
+  selectedSavedVerseIds.clear();
+  renderSavedVerses();
+  updateSequenceSelectionUi();
+}
+
+function getSelectedSavedVersesForSequence() {
+  return savedVerses.filter(item => selectedSavedVerseIds.has(item.id));
+}
+
+function updateSequenceControls() {
+  const sequenceActive = sequenceQueue.length > 0 && sequenceIndex >= 0;
+
+  if (sequenceStatus) {
+    sequenceStatus.classList.toggle("hidden", !sequenceActive);
+    sequenceStatus.textContent = sequenceActive
+      ? `Round ${sequenceIndex + 1} of ${sequenceQueue.length} · ${currentReference}`
+      : "Round 1 of 1";
+  }
+
+  if (nextSequenceBtn) {
+    nextSequenceBtn.classList.toggle("hidden", !sequenceActive);
+    nextSequenceBtn.textContent = sequenceIndex >= sequenceQueue.length - 1
+      ? "Finish Sequence"
+      : "Next Verse";
+  }
+
+  if (endSequenceBtn) {
+    endSequenceBtn.classList.toggle("hidden", !sequenceActive);
+  }
+
+  if (newTestBtn) {
+    newTestBtn.classList.toggle("hidden", sequenceActive);
+  }
+}
+
+function loadSequenceVerse(index) {
+  const item = sequenceQueue[index];
+  if (!item) return;
+
+  loadSavedVerse(item.id, false);
+  createTest();
+  updateSequenceControls();
+}
+
+function startSequencePractice() {
+  const selectedVerses = getSelectedSavedVersesForSequence();
+
+  if (selectedVerses.length < 2) {
+    showMessage("Select at least 2 saved verses for sequence practice.", "error");
+    return;
+  }
+
+  sequenceQueue = shuffleArray(selectedVerses);
+  sequenceIndex = 0;
+  sequenceScores = [];
+  loadSequenceVerse(sequenceIndex);
+  showMessage(`Sequence practice started with ${sequenceQueue.length} verses.`, "info");
+}
+
+function endSequencePractice(showSummary = true) {
+  const completedCount = sequenceScores.length;
+  const averageScore = completedCount
+    ? Math.round(sequenceScores.reduce((sum, score) => sum + score, 0) / completedCount)
+    : null;
+
+  sequenceQueue = [];
+  sequenceIndex = -1;
+  updateSequenceControls();
+
+  if (showSummary) {
+    showMessage(
+      averageScore === null
+        ? "Sequence ended."
+        : `Sequence complete! Average score: ${averageScore}% across ${completedCount} round${completedCount === 1 ? "" : "s"}.`,
+      "info"
+    );
+  }
+}
+
+function goToNextSequenceVerse() {
+  if (!sequenceQueue.length || sequenceIndex < 0) return;
+
+  if (!attemptRecordedThisRound) {
+    showMessage("Check your answer before moving to the next verse.", "error");
+    return;
+  }
+
+  if (sequenceIndex >= sequenceQueue.length - 1) {
+    endSequencePractice(true);
+    return;
+  }
+
+  sequenceIndex++;
+  loadSequenceVerse(sequenceIndex);
 }
 
 function getScoreClass(score) {
@@ -1499,7 +1711,8 @@ function getProgressCurrentScoreElement() {
 
 function getCurrentSavedVerse() {
   if (!currentReference) return null;
-  return savedVerses.find(v => v.reference.toLowerCase() === currentReference.toLowerCase()) || null;
+  const index = findSavedVerseIndexByReferenceAndVersion(currentReference, getSelectedVersion());
+  return index >= 0 ? savedVerses[index] : null;
 }
 
 function showProgressForCurrentVerse() {
@@ -1568,7 +1781,7 @@ function handleSaveOrPracticeButton() {
     hideProgressCard();
     practiceCard.classList.add("hidden");
     updateDashboardVisibility();
-    
+    endSequencePractice(false);
     scorePill.textContent = "Not checked yet";
     showMessage("Choose a difficulty, then press Start Practice.", "info");
     syncMemoryListHeight();
@@ -1602,7 +1815,7 @@ function clearLoadedVerse() {
   practiceCard.classList.add("hidden");
   updateDashboardVisibility();
   
-
+  endSequencePractice(false);
   hideMessage();
   updateSavePracticeButton();
   syncMemoryListHeight();
@@ -1618,6 +1831,7 @@ function clearPractice() {
   hintCount = 0;
   attemptRecordedThisRound = false;
   checkBtn.disabled = false;
+  endSequencePractice(false);
   syncMemoryListHeight();
 }
 
@@ -1627,12 +1841,21 @@ function saveCurrentVerse() {
     return;
   }
 
-  const key = currentReference.toLowerCase();
-  const existingIndex = savedVerses.findIndex(v => v.reference.toLowerCase() === key);
+  const selectedVersionId = getSelectedVersion();
+  const selectedVersionText = versionSelect?.selectedOptions?.[0]?.textContent || "ESV — English Standard Version";
+  const selectedVersion = selectedVersionText.split(" — ")[0] || "ESV";
+  const selectedVersionLabel = selectedVersionText.includes(" — ")
+    ? selectedVersionText.split(" — ").slice(1).join(" — ")
+    : selectedVersionText;
+
+  const existingIndex = findSavedVerseIndexByReferenceAndVersion(currentReference, selectedVersionId);
 
   const verseRecord = {
     id: existingIndex >= 0 ? savedVerses[existingIndex].id : crypto.randomUUID(),
     reference: currentReference,
+    version: selectedVersion,
+    versionId: selectedVersionId,
+    versionLabel: selectedVersionLabel,
     text: currentVerse,
     html: currentVerseHtml,
     savedAt: new Date().toISOString(),
@@ -1686,7 +1909,11 @@ function renderSavedVerses() {
     const attemptsText = item.attempts || 0;
 
     div.innerHTML = `
-      <div class="saved-ref">${escapeHtml(item.reference)}</div>
+      <label class="saved-sequence-select">
+        <input type="checkbox" data-action="toggle-sequence" data-id="${escapeAttr(item.id)}" ${selectedSavedVerseIds.has(item.id) ? "checked" : ""} />
+        <span>Select</span>
+      </label>
+      <div class="saved-ref">${escapeHtml(item.reference)} <span class="saved-version">${escapeHtml(getVersionDisplayForSavedItem(item))}</span></div>
       <div class="saved-preview saved-verse-preview">${previewHtml}</div>
       <div class="saved-preview">${scoreText} · Attempts: ${attemptsText}</div>
       <div class="saved-actions">
@@ -1698,6 +1925,7 @@ function renderSavedVerses() {
 
     savedVersesList.appendChild(div);
   });
+  updateSequenceSelectionUi();
 }
 
 function getVerseOnlyFromSaved(item) {
@@ -1766,7 +1994,7 @@ function deleteSavedVerse(id) {
 function updateSavedVerseScore(percent) {
   if (!currentReference) return;
 
-  const index = savedVerses.findIndex(v => v.reference.toLowerCase() === currentReference.toLowerCase());
+  const index = findSavedVerseIndexByReferenceAndVersion(currentReference, getSelectedVersion());
   if (index < 0) return;
 
   const item = savedVerses[index];
@@ -1820,8 +2048,11 @@ function createTest() {
 
     const referenceHtml = currentReference
       ? `<div class="practice-reference-heading">
-          <span>${escapeHtml(practiceReference.book)}</span>
-          ${practiceReference.numbers ? buildReferenceNumberPracticeHtml(practiceReference.numbers) : ""}
+          ${isSequencePracticeActive()
+            ? `<span>${escapeHtml(currentReference)}</span>`
+            : `<span>${escapeHtml(practiceReference.book)}</span>
+               ${practiceReference.numbers ? buildReferenceNumberPracticeHtml(practiceReference.numbers) : ""}`
+          }
         </div>`
       : "";
 
@@ -1984,6 +2215,9 @@ function checkFullRecall() {
 
 function showResult(percent, detail) {
   scorePill.textContent = `${percent}%`;
+  if (sequenceQueue.length && sequenceIndex >= 0) {
+    sequenceScores[sequenceIndex] = percent;
+  }
   updateSavedVerseScore(percent);
   showProgressForCurrentVerse();
   syncMemoryListHeight();
@@ -2146,6 +2380,20 @@ if (bookSelect) {
 }
 
 savedVersesList.addEventListener("click", event => {
+  const sequenceToggle = event.target.closest('[data-action="toggle-sequence"]');
+  if (sequenceToggle) {
+    const id = sequenceToggle.dataset.id;
+
+    if (sequenceToggle.checked) {
+      selectedSavedVerseIds.add(id);
+    } else {
+      selectedSavedVerseIds.delete(id);
+    }
+
+    updateSequenceSelectionUi();
+    return;
+  }
+
   const button = event.target.closest("button");
   if (!button) return;
 
@@ -2156,6 +2404,22 @@ savedVersesList.addEventListener("click", event => {
   if (action === "load") loadSavedVerse(id, false);
   if (action === "delete") deleteSavedVerse(id);
 });
+
+if (startSequenceBtn) {
+  startSequenceBtn.addEventListener("click", startSequencePractice);
+}
+
+if (clearSequenceSelectionBtn) {
+  clearSequenceSelectionBtn.addEventListener("click", clearSequenceSelection);
+}
+
+if (nextSequenceBtn) {
+  nextSequenceBtn.addEventListener("click", goToNextSequenceVerse);
+}
+
+if (endSequenceBtn) {
+  endSequenceBtn.addEventListener("click", () => endSequencePractice(true));
+}
 
 if (clearSavedBtn) {
   clearSavedBtn.addEventListener("click", () => {
@@ -2336,9 +2600,17 @@ if (clearFeedbackBtn) {
   clearFeedbackBtn.addEventListener("click", clearFeedbacks);
 }
 
+
 window.addEventListener("resize", syncMemoryListHeight);
 
-const selectedVersion = getSelectedVersion();
+const memoryListResizeObserver = "ResizeObserver" in window
+  ? new ResizeObserver(() => requestAnimationFrame(syncMemoryListHeight))
+  : null;
+
+if (memoryListResizeObserver && mainColumn) {
+  [...mainColumn.children].forEach(child => memoryListResizeObserver.observe(child));
+}
+
 syncDifficultyPicker();
 loadBibleVersions();
 loadSavedVerses();

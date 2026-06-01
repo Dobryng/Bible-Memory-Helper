@@ -269,6 +269,7 @@
             <div>
               <p class="label">Memory test</p>
               <h2 id="practiceTitle">Fill in the missing words</h2>
+              <p id="sequenceStatus" class="sequence-status hidden">Round 1 of 1</p>
             </div>
             <div class="score-pill" id="scorePill">Not checked yet</div>
           </div>
@@ -280,6 +281,8 @@
             <button id="hintBtn">Show Hint</button>
             <button id="revealBtn">Reveal Verse</button>
             <button id="newTestBtn">New Test</button>
+            <button id="nextSequenceBtn" type="button" class="primary hidden">Next Verse</button>
+            <button id="endSequenceBtn" type="button" class="ghost hidden">End Sequence</button>
           </div>
         </section>
       </div>
@@ -296,6 +299,17 @@
           <div class="field search-field">
             <label for="savedSearch">Search saved verses</label>
             <input id="savedSearch" type="text" placeholder="Search reference or verse..." />
+          </div>
+
+          <div class="sequence-toolbar">
+            <div>
+              <p class="sequence-toolbar-label">Sequence practice</p>
+              <p id="selectedVerseCount" class="sequence-toolbar-count">0 verses selected</p>
+            </div>
+            <div class="sequence-toolbar-actions">
+              <button id="startSequenceBtn" type="button" class="primary" disabled>Practice Selected</button>
+              <button id="clearSequenceSelectionBtn" type="button" class="ghost" disabled>Clear</button>
+            </div>
           </div>
 
           <div id="savedVersesList" class="saved-list"></div>
